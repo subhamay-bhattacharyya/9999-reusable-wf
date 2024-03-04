@@ -1,0 +1,60 @@
+name: "Delete Serverless Stack"
+
+on: 
+  workflow_call:
+    secrets: 
+      aws-region: 
+        required: true
+      devl-aws-role-arn: 
+        required: true
+      devl-kms-key-arn: 
+        required: true
+      devl-aws-sls-artifacts-bucket-name: 
+        required: true
+      test-aws-role-arn: 
+        required: true
+      test-kms-key-arn: 
+        required: true
+      test-aws-sls-artifacts-bucket-name: 
+        required: true
+      prod-aws-role-arn: 
+        required: true
+      prod-kms-key-arn: 
+        required: true
+      prod-aws-sls-artifacts-bucket-name: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR  
+
+jobs:
+  _1-devl:
+    name: Devl
+    uses: ./.github/workflows/sls-delete.yaml
+    with:
+      github-env: devl
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      aws-sls-artifacts-bucket-name: ${{ secrets.devl-aws-sls-artifacts-bucket-name }}
+  _2-test:
+    name: Test
+    needs: [_1-devl ]
+    uses: ./.github/workflows/sls-delete.yaml
+    with:
+      github-env: test
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.test-aws-role-arn }}
+      aws-sls-artifacts-bucket-name: ${{ secrets.test-aws-sls-artifacts-bucket-name }}
+  _3-prod:
+    name: Prod
+    needs: [ _2-test ]
+    uses: ./.github/workflows/sls-delete.yaml
+    with:
+      github-env: prod
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      aws-sls-artifacts-bucket-name: ${{ secrets.prod-aws-sls-artifacts-bucket-name }}

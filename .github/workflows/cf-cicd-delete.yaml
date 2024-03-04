@@ -1,0 +1,60 @@
+name: "Delete CloudFormation Stack"
+
+on: 
+  workflow_call:
+    secrets: 
+      aws-region: 
+        required: true
+      devl-aws-role-arn: 
+        required: true
+      devl-kms-key-arn: 
+        required: true
+      devl-code-repository-s3-bucket: 
+        required: true
+      test-aws-role-arn: 
+        required: true
+      test-kms-key-arn: 
+        required: true
+      test-code-repository-s3-bucket: 
+        required: true
+      prod-aws-role-arn: 
+        required: true
+      prod-kms-key-arn: 
+        required: true
+      prod-code-repository-s3-bucket: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR  
+
+jobs:
+  _1-devl:
+    name: Devl
+    uses: ./.github/workflows/cf-delete.yaml
+    with:
+      github-env: devl
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      code-repository-s3-bucket: ${{ secrets.devl-code-repository-s3-bucket }}
+  _2-test:
+    name: Test
+    needs: [_1-devl ]
+    uses: ./.github/workflows/cf-delete.yaml
+    with:
+      github-env: test
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.test-aws-role-arn }}
+      code-repository-s3-bucket: ${{ secrets.test-code-repository-s3-bucket }}
+  _3-prod:
+    name: Prod
+    needs: [ _2-test ]
+    uses: ./.github/workflows/cf-delete.yaml
+    with:
+      github-env: prod
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      code-repository-s3-bucket: ${{ secrets.prod-code-repository-s3-bucket }}

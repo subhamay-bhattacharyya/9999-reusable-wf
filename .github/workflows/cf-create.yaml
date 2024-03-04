@@ -1,0 +1,315 @@
+name: CloudFormation Create Stack
+run-name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+      github-sha:
+        description: 'The github sha value of the commit that will be used for deployment'
+        required: true
+        type: string
+        default: "9ecd0f746def61e9bffe312d8ef51dacf8f342a0"
+      cft-upload-status: 
+        description: 'Specifies if status of CloudFormation Template upload.'
+        required: true
+        type: string
+      lambda-code-upload-status: 
+        description: 'Specifies if status of Lambda code upload.'
+        required: true
+        type: string
+      glue-code-upload-status:
+        description: 'Specifies if status of Glue Code upload.'
+        required: true
+        type: string
+      asl-file-upload-status: 
+        description: 'Specifies if status of ASL file upload.'
+        required: true
+        type: string
+      # lambda-layer-code-upload-status: 
+      #   description: 'Specifies if status of Lambda layer code upload.'
+      #   required: true
+      #   type: string
+      # docker-build-status:
+      #   description: 'Specifies the docker build status.'
+      #   required: true
+      #   type: string
+    outputs:
+      cft-stack-status:
+        description: 'Specifies the stack status.'
+        value:  ${{ jobs.create.outputs.cfn-stack-status }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  create:
+    name: "Deploy ${{ inputs.github-env }}"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    outputs:
+      cfn-stack-status: ${{ steps.set-cfn-output.outputs.cfn-stack-status }}
+    steps:
+      - name: Print the job input parameters
+        id: print-job-input-params
+        run: |
+          echo "Input :: GitHub Envronment             : ${{ inputs.github-env }}"
+          echo "Input :: GitHub SHA                    : ${{ inputs.github-sha }}"
+          echo "Input :: CFT Upload Status             : ${{ inputs.cft-upload-status }}"
+
+      - name: Configure AWS credentials from AWS account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      - name: Get the parameters.json from S3 Repository
+        id: get-parameters
+        env: 
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+        run: |
+          echo "Getting the parameters.json file S3 repository"
+          aws s3 cp s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json ${{ github.workspace }}/cfn-parameters.json
+          echo "================= ${{ github.workspace }}/cfn-parameters.json ======================="
+          cat ${{ github.workspace }}/cfn-parameters.json
+          echo "================================================================================="
+
+      - name: Remove the CiBuild parameter for main branch
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY') && startsWith(github.ref, 'refs/heads/main')
+        id: remove-ci-build-parameter
+        run: |
+          echo "=============Before removing CiBuild================="
+          cat ${{ github.workspace }}/cfn-parameters.json
+          echo "=============After removing CiBuild================="
+          cat ${{ github.workspace }}/cfn-parameters.json|jq 'del(.[] | select(.ParameterKey == "CiBuild"))' > ${{ github.workspace }}/cfn-parameters.json.${{ inputs.github-sha }}
+          rm -rf ${{ github.workspace }}/cfn-parameters.json 
+          mv ${{ github.workspace }}/cfn-parameters.json.${{ inputs.github-sha }} ${{ github.workspace }}/cfn-parameters.json 
+
+          # Update the StackName tag
+          project_name=`cat ${{ github.workspace }}/${{ github.sha }}/stack-metedata.json|jq -r '."project_name"'`
+          stack_prefix=`cat ${{ github.workspace }}/${{ github.sha }}/stack-metedata.json|jq -r '."stack_prefix"'`
+          stack_suffix=`cat ${{ github.workspace }}/${{ github.sha }}/stack-metedata.json|jq -r '."stack_suffix"'`
+          aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json \
+          --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+          --bucket ${{ secrets.code-repository-s3-bucket }} --tagging '{
+                                                                        "TagSet":[
+                                                                            {
+                                                                              "Key":"StackName",
+                                                                              "Value": "${project_name}-${stack_prefix}-${stack_suffix}" 
+                                                                            },
+                                                                            {
+                                                                                "Key":"StackStatus",
+                                                                                "Value":"-"
+                                                                            },
+                                                                            {
+                                                                              "Key": "StackPath",
+                                                                              "Value": "`cat ${{ github.workspace }}/${{ github.sha }}/stack-metedata.json|jq -r '."cfn_template_path"'`"
+                                                                            },
+                                                                            {
+                                                                              "Key":"GitHubWFRunNumber",
+                                                                              "Value":"${{ github.run_number }}"
+                                                                            },
+                                                                            { 
+                                                                                "Key":"StackId",
+                                                                                "Value": "-"
+                                                                            },
+                                                                            {
+                                                                                "Key":"CiBuild",
+                                                                                "Value":""
+                                                                            }
+                                                                        ]
+                                                                      }' --key
+      - name: Determine which step to run
+        id: step-to-run
+        run: |
+          if [ "${{ inputs.cft-upload-status }}" == "CFT_UPLOAD_SUCCESSFUL" ] || [ "${{ github.ref }}" == "refs/heads/feature"* ]; then
+            echo "Deploy CloudFormation"
+            echo "run-step=CFN_DEPLOY" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.lambda-code-upload-status }}" == "LAMBDA_CODE_UPLOAD_SUCCESSFUL"] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "Deploy Lambda Code Only"
+            echo "run-step=DEPLOY_LAMBDA" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Print the step to run
+        id: print-step-to-run
+        run: |
+          echo "Step to run : ${{ steps.step-to-run.outputs.run-step }}"
+
+      - name: Get the Stack Name from the cfn-parameters.json S3 object tag
+        id: get-cfn-stack-name
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        run: |
+          echo "cfn-stack-name=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          --key ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json|jq -r '.TagSet[]|select(.Key=="StackName")|.Value'`" >> $GITHUB_OUTPUT
+
+          echo "ci-build=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          --key ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json|jq -r '.TagSet[]|select(.Key=="CiBuild")|.Value'`" >> $GITHUB_OUTPUT
+
+          echo "template-path=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          --key ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json|jq -r '.TagSet[]|select(.Key=="StackPath")|.Value'`" >> $GITHUB_OUTPUT  
+
+      - name: Print the stack name
+        id: print-stack-name
+        run: |
+          echo "CloudFormation Stack Name : ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}"
+          echo "CiBuild                   : ${{ steps.get-cfn-stack-name.outputs.ci-build }}"
+          echo "Template Path             : ${{ steps.get-cfn-stack-name.outputs.template-path }}"
+
+      - name: Delete the stacks which are in ROLLBACK_COMPLETE or CREATE_FAILED status
+        id: delete-invalid-stacks
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY') && startsWith(github.ref, 'refs/heads/feature')
+        run: |
+          ## Get all the parameters file for the repository
+          aws s3api list-objects-v2 --bucket ${{ secrets.code-repository-s3-bucket }} \
+                            --query "Contents[?(contains(Key, 'params/cfn-parameters.json') && contains(Key, '${{ github.event.repository.name }}'))]" |jq -r '.[].Key'|while read -r params_file;
+          do
+            echo "Parameters json file 👉 $params_file"
+            ## Get the feature stack name
+            stack_status="`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} --key $params_file|jq -r '.TagSet[]|{(.Key):.Value}'|jq -s add|jq -r '.StackStatus'`"
+            stack_id="`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} --key $params_file|jq -r '.TagSet[]|{(.Key):.Value}'|jq -s add|jq -r '.StackId'`"
+            # ci_build="`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} --key $params_file|jq -r '.TagSet[]|{(.Key):.Value}'|jq -s add|jq -r '.CiBuild'`"
+            # # template_path="`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} --key $params_file|jq -r '.TagSet[]|{(.Key):.Value}'|jq -s add|jq -r '.StackPath'`"
+
+            echo "StackStatus = $stack_status"
+            echo "StackId     = $stack_id"
+            echo "CiBuild     = ${{ steps.get-cfn-stack-name.outputs.ci-build }}"
+            echo "StackPath   = ${{ steps.get-cfn-stack-name.outputs.template-path }}"
+
+            if [[ $stack_status == "ROLLBACK_COMPLETE" ]] || [[ $stack_status == "CREATE_FAILED" ]] || [[ $stack_status == "DELETEFAILED" ]]; then
+              stack_name="`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} --key $params_file|jq -r '.TagSet[]|select(.Key=="StackName")|.Value'`";
+              echo "Feature stack name 👉 $stack_name"
+              ## If the feature stack is in ROLLBACK_COMPLETE or CREATE_FAILED status, then delete the feature_stack_name
+              echo "Deleting the stack $stack_name which is in $stack_status state"
+              aws cloudformation delete-stack --stack-name $stack_name
+                
+              aws cloudformation wait stack-delete-complete --stack-name $stack_name
+
+              stack_status="`aws cloudformation describe-stacks --stack-name $stack_id  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackStatus'`"
+              echo "Stack Status : $stack_status"
+
+              aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix $params_file \
+                  --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+                  --bucket ${{ secrets.code-repository-s3-bucket }} --tagging "{\"TagSet\": [{ \"Key\": \"StackName\", \"Value\": \"${stack_name}\"}, \
+                                                                                     { \"Key\": \"StackStatus\", \"Value\": \"${stack_status}\"}, \
+                                                                                     { \"Key\": \"StackPath\", \"Value\": \"${{ steps.get-cfn-stack-name.outputs.template-path }}\"}, \
+                                                                                     { \"Key\": \"GitHubWFRunNumber\", \"Value\": \"${{ github.run_number }}\"}, \
+                                                                                     { \"Key\": \"StackId\", \"Value\": \"${stack_id}\"}, \
+                                                                                     { \"Key\": \"CiBuild\", \"Value\": \"${{ steps.get-cfn-stack-name.outputs.ci-build }}\"} \
+                                                                                    ]}" --key
+
+              echo "invalid-stack-deleted='true'" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      # - name: Print Stack deleted message
+      #   if: success() && contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY') && contains(steps.delete-invalid-stacks.invalid-stack-deleted, 'true') 
+      #   id: print-delete-status
+      #   run: |
+      #     echo "The stack(s) which are in ROLLBACK_COMPLETE status have been deleted."
+
+      - name: Deploy using AWS CloudFormation
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        id: deploy-stack
+        continue-on-error: true
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+        with:
+          name: ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  
+          template: https://${{ secrets.code-repository-s3-bucket }}.s3.amazonaws.com/${{ github.event.repository.name }}/${{ inputs.github-sha }}/${{ steps.get-cfn-stack-name.outputs.template-path }}
+          parameter-overrides: file:///${{ github.workspace }}/cfn-parameters.json
+          capabilities: "CAPABILITY_NAMED_IAM"
+          no-fail-on-empty-changeset: 0
+          disable-rollback: 1
+
+      - name: Get the Stack Status
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        id: get-stack-status
+        continue-on-error: false
+        run: |
+          echo "cfn-stack-status=`aws cloudformation describe-stacks --stack-name ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackStatus'`" >> $GITHUB_OUTPUT
+          echo "cfn-stack-id=`aws cloudformation describe-stacks --stack-name ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackId'`" >> $GITHUB_OUTPUT
+
+      - name: Set CloudFormation Stack output
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        continue-on-error: true
+        id: set-cfn-output
+        run: |
+          # cfn_stack_status=$()
+          echo "Stack Status = ${{ steps.get-stack-status.outputs.cfn-stack-status }}"
+
+          stack_status=`aws cloudformation describe-stacks --stack-name ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackStatus'`" 
+          stack_id="`aws cloudformation describe-stacks --stack-name ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackId'`"
+
+          aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json \
+                  --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+                  --bucket ${{ secrets.code-repository-s3-bucket }} --tagging "{\"TagSet\": [{ \"Key\": \"StackName\", \"Value\": \"${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}\"}, \
+                                                                                { \"Key\": \"StackStatus\", \"Value\": \"${{ steps.get-stack-status.outputs.cfn-stack-status }}\"}, \
+                                                                                { \"Key\": \"StackPath\", \"Value\": \"${{ steps.get-cfn-stack-name.outputs.template-path }}\"}, \
+                                                                                { \"Key\": \"GitHubWFRunNumber\", \"Value\": \"${{ github.run_number }}\"}, \
+                                                                                { \"Key\": \"StackId\", \"Value\": \"${stack_id}\"}, \
+                                                                                { \"Key\": \"CiBuild\", \"Value\": \"${{ steps.get-cfn-stack-name.outputs.ci-build }}\"} \
+                                                                              ]}" --key
+
+      - name: Describe the CloudFormation Stack Events
+        id: describe-cfn-stack-events
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        continue-on-error: false
+        run: |
+          aws cloudformation describe-stack-events --stack-name ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}|jq -r '.StackEvents' >> ${{ github.workspace }}/cfn-events-${{ github.sha }}.json
+
+      - name: Read events file contents
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        id: read-cf-events-file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: ${{ github.workspace }}/cfn-events-${{ github.sha }}.json
+
+      - name: Convert CloudFormation Events from JSON to Markdown
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        id: convert-cfn-events-table
+        uses: buildingcash/json-to-markdown-table-action@v1
+        with:
+          json: ${{ steps.read-cf-events-file.outputs.contents }}
+
+      - name: Display the CloudFormation Stack Events 
+        if: contains(steps.step-to-run.outputs.run-step, 'CFN_DEPLOY')
+        id: display-cfn-events-table
+        run: |
+          echo "${{ steps.convert-cfn-events-table.outputs.table }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail the action if the CloudFormation stack creation / updation fails
+        if: steps.deploy-stack.outcome == 'failure'
+        id: fail-step
+        run: |
+          echo " ${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}  is in status  ${{ steps.get-stack-status.outputs.cfn-stack-status }} , hence failing the pipeline."
+          exit 1
+
+      - name: Deploy the Lambda code and update tags only
+        if: contains(steps.step-to-run.outputs.run-step, 'DEPLOY_LAMBDA') && startsWith(github.ref, 'refs/heads/main')
+        id: update-lambda
+        run: |
+          lambda-functions-changed="${{ inputs.lambda-functions-changed }}"
+          for lambda-function-name in "$lambda-functions-changed[@]"
+          do
+            # echo "lambda-function-name=`jq -r '."project-name"' params/cfn-parameters.json`-" >> $GITHUB_OUTPUT
+            lambda-function-full-name="`jq -r '."project-name"' params/cfn-parameters.json`-${lambda-function-name}-${{ secrets.aws-region }}|sed 's/./& /g'|sed 's/ //g'"
+            echo "Lambda Function Full Name : ${lambda-function-full-name}"
