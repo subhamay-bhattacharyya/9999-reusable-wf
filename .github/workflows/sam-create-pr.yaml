@@ -1,0 +1,236 @@
+name: Create Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      pr-title:
+        description: 'Spefifies the Pull Request title.'
+        required: true
+        type: string
+        default: "Pull Request"
+      pr-approver:
+        description: 'Specifies the GitHub User who can approve a Pull Request.'
+        required: true
+        type: string
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"        
+    outputs:
+      ci-build:
+        description: "CI Build"
+        value: ${{ jobs.pull-request.outputs.ci-build }}
+      ci-build-long:
+        description: "CI Build (long) used as Stack Name suffix"
+        value: ${{ jobs.pull-request.outputs.ci-build-long }}
+      stack-name: 
+        description: "Stack name to be used to create the change set."
+        value: ${{ jobs.pull-request.outputs.stack-name }}
+      sam-change-set-id:
+        description: "SAM Stack change set id"
+        value: ${{ jobs.pull-request.outputs.sam-change-set-id }}
+    secrets:
+      aws-region:
+        required: true
+      aws-sam-pipeline-role-arn:
+        required: true
+      aws-cloudformation-role-arn:
+        required: true
+      aws-sam-artifacts-bucket-name:
+        required: true
+      kms-key-arn: 
+        required: true
+      git-token:
+        required: true
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+  pull-requests: write # This is required for gh bot to comment PR
+  contents: write
+
+jobs:
+  pull-request:
+    name: "create pull request"
+    outputs:
+      ci-build: ${{ steps.ci-build-string.outputs.ci-build }}
+      ci-build-long: ${{ steps.ci-build-string.outputs.ci-build-long }}
+      stack-name: ${{ steps.get-stack-name.outputs.stack-name }}
+      sam-change-set-id: ${{ steps.create-change-set.outputs.sam-change-set-id }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Get Build Artifact
+        id: sam-artifacts
+        uses: actions/download-artifact@v3
+        with: 
+          name: sam-artifacts
+      
+      - name: Get CiBuild String
+        id: ci-build-string
+        run: |
+          echo "ci-build=-`grep "^ci-build\=" ${{ github.workspace }}/ci-build-string.txt|awk -F= '{print $2}'`"          >> $GITHUB_OUTPUT
+          echo "ci-build-long=`grep "^ci-build-long\=" ${{ github.workspace }}/ci-build-string.txt|awk -F= '{print $2}'`" >> $GITHUB_OUTPUT
+
+      - name: Print samconfig
+        id: update-samconfig
+        run: |
+          echo "ci-build : ${{ steps.ci-build-string.outputs.ci-build }}"
+          echo "ci-build-long : ${{ steps.ci-build-string.outputs.ci-build-long }}"
+          echo "***"
+          echo "****** samconfig.toml - ${{ github.workspace }}/samconfig.toml**********************"
+          cat ${{ github.workspace }}/samconfig.toml
+          echo "***"
+          echo "****** modified samconfig.toml - ${{ github.workspace }}/samconfig.toml ************"
+          echo "***"
+          rm -rf ${{ github.workspace }}/samconfig.toml.temp
+          sed -e s/${{ steps.ci-build-string.outputs.ci-build-long }}// ${{ github.workspace }}/samconfig.toml > ${{ github.workspace }}/samconfig.toml.temp
+          rm -f ${{ github.workspace }}/samconfig.toml
+          mv ${{ github.workspace }}/samconfig.toml.temp ${{ github.workspace }}/samconfig.toml
+          sed -e s/${{ steps.ci-build-string.outputs.ci-build }}// ${{ github.workspace }}/samconfig.toml     >> ${{ github.workspace }}/samconfig.toml.temp
+          mv ${{ github.workspace }}/samconfig.toml.temp ${{ github.workspace }}/samconfig.toml
+          cat ${{ github.workspace }}/samconfig.toml
+
+      - name: Get Stack Name
+        id: get-stack-name
+        run: |
+          echo "stack-name=`grep "^stack_name" ${{ github.workspace }}/samconfig.toml|sed 's/ //g'|awk -F= '{print $2}'|sed 's/"//g'`" >> $GITHUB_OUTPUT
+
+      - name: Setup AWS SAM CLI
+        id: setup-sam-cli
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ secrets.aws-sam-pipeline-role-arn }}
+          role-session-name: github-aws-sam-oidc-${{ inputs.github-env }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: SAM Create Change Set
+        id: create-change-set
+        run: |
+          echo "sam-change-set-id=`sam deploy --stack-name  ${{ steps.get-stack-name.outputs.stack-name }} \
+            --template ${{ github.workspace }}/packaged-template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.aws-region }} \
+            --s3-bucket ${{ secrets.aws-sam-artifacts-bucket-name }} \
+            --s3-prefix ${{ github.event.repository.name }}/${{ github.sha }} \
+            --no-fail-on-empty-changeset \
+            --no-execute-changeset \
+            --tags "GitHubSHA=${{ github.sha }} GitHubWFRunNumber=${{ github.run_number }} GitHubURL=${{ github.repositoryUrl }} GitHubRef=${{ github.ref }}" \
+            --role-arn  ${{ secrets.aws-cloudformation-role-arn }} \
+            --config-file ${{ github.workspace }}/samconfig.toml|grep 'Changeset created successfully'|sed -e 's/Changeset created successfully.//g'|sed 's/ //g'`" >> $GITHUB_OUTPUT
+
+      - name: Describe Change Set JSON (Single Template)
+        id: describe-change-set
+        run: |
+          aws cloudformation describe-change-set --change-set-name ${{ steps.create-change-set.outputs.sam-change-set-id }}|jq -r '.Changes' > ${{ github.workspace }}/change-set-${{ github.sha }}.json
+          echo "***************************************Change Set**************************************"
+          cat ${{ github.workspace }}/change-set-${{ github.sha }}.json
+          echo "************** Deleting Change Set **********************"
+          aws cloudformation delete-change-set --change-set-name ${{ steps.create-change-set.outputs.sam-change-set-id }} \
+          --stack-name ${{ steps.get-stack-name.outputs.stack-name }}
+
+          change_sets=$(aws cloudformation list-change-sets --stack-name ${{ steps.get-stack-name.outputs.stack-name }}|jq -rc '.Summaries[]')
+
+          echo "Change Sets : ~${change_sets}~"
+
+          if [[ "$change_sets" == "" ]]; then
+            echo "Delete the stack"
+            aws cloudformation delete-stack --stack-name ${{ steps.get-stack-name.outputs.stack-name }}
+          fi
+
+      - name: Generate Pull Request Body
+        id: generate-pr-body
+        run: |
+          echo "<html>"                 >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "  <body>"               >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <p>"                >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    Pull Request request created to merge <b>${{ github.ref_name }}</b> with <b>main</b> for the repository <b>${{ github.event.repository.name }} to add/remove/update the following resources:</b>" >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    </p>"               >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <font size='1'>"    >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <table>"            >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "          <th><img alt='Static Badge' src='https://img.shields.io/badge/Action-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Logical_Resource_Id-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Resource_Type-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Replacement-black?style=flat-square&color=ffffff'></th>" >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+
+          ## Loop through the nested stacks and expand the resources
+          for root_stack_res in $(jq -rc '.[]|select(.ResourceChange.ResourceType == "AWS::CloudFormation::Stack")|{ChangeSetId:.ResourceChange.ChangeSetId,LogicalResourceId:.ResourceChange.LogicalResourceId,Replacement:.Replecement}' ${{ github.workspace }}/change-set-${{ github.sha }}.json); do
+            change_set_id=`echo $root_stack_res|jq -r '.ChangeSetId'`
+            logical_resource_id_root=`echo $root_stack_res|jq -r '.LogicalResourceId'`
+            replacement=`echo $root_stack_res|jq -r '.Replacement'|sed 's/null/-/g'`
+
+            for nested_stack_res in $(aws cloudformation describe-pr-body --change-set-name $change_set_id|jq -r '.Changes[].ResourceChange|{Action: .Action,ResourceType: .ResourceType,LogicalResourceId:.LogicalResourceId}|@base64'); do
+              resource=`echo ${nested_stack_res}| base64 --decode | jq -r ${1}`
+              action=`echo $resource|jq -r '.Action'`
+              logical_resource_id=`echo $resource|jq -r '.LogicalResourceId'`
+              resource_type=`echo $resource|jq -r '.ResourceType'`
+              echo "$action - $logical_resource_id - resource_type"
+              if [ "$action" = "Add" ]; then
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Add-green?style=soc'>"
+              elif [ "$action" = "Delete" ]; then
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Delete-red?style=soc'>"
+              else
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Update-yellow?style=soc'>"
+              fi
+              echo "<tr><td>$action</td><td>$logical_resource_id_root => $logical_resource_id</td><td>$resource_type</td><td>$replacement</td></tr>"  >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+            done
+          done
+
+          for row in $(jq -r '.[]|select(.ResourceChange.ResourceType != "AWS::CloudFormation::Stack")|@base64' ${{ github.workspace }}/change-set-${{ github.sha }}.json); do
+            element=`echo ${row}| base64 --decode | jq -r ${1}`
+            action=`echo $element|jq -r '.ResourceChange.Action'`
+            logical_resource_id=`echo $element|jq -r '.ResourceChange.LogicalResourceId'`
+            resource_type=`echo $element|jq -r '.ResourceChange.ResourceType'`
+            replacement=`echo $change_set|jq -r '.ResourceChange.Replacement'|sed s/null/-/g`
+            if [ "$replacement" = "" ]; then
+              replacement="-"
+            fi
+            if [ "$action" = "Add" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Add-green?style=soc'>"
+            elif [ "$action" = "Delete" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Delete-red?style=soc'>"
+            elif [ "$action" = "Update" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Update-yellow?style=soc'>"
+            else
+              action="-${action}-"
+            fi
+            echo "<tr><td>$action</td><td>$logical_resource_id</td><td>$resource_type</td><td>$replacement</td></tr>" >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          done
+
+          echo "    </table>"           >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    </font>"            >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "  </body>"              >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "</html>"                >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "************** Pull Request Body ***************"
+          cat ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          
+      - name: Read file contents
+        id: read-file
+        uses: andstor/file-reader-action@v1
+        with:
+          path:  ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: octokit/request-action@v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
+        with:
+          route: POST /repos/{owner}/{repo}/pulls
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          title: ${{ inputs.pr-title }}
+          head: ${{ github.ref_name }} 
+          base: "main"
+          body: "${{ steps.read-file.outputs.contents }}"
+          
+

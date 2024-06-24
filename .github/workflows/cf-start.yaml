@@ -1,0 +1,68 @@
+name: Start
+run-name: Start CloudFormation CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      deploy-reviewer-test:
+        description: 'Specifies the GitHub User Id of the deployment reviewer-1.'
+        required: true
+        type: string
+      deploy-reviewer-prod:
+        description: 'Specifies the GitHub User Id of the deployment reviewer-2.'
+        required: true
+        type: string
+      pr-approver:
+        description: 'Specifies the GitHub User who can approve a Pull Request.'
+        required: true
+        type: string  
+    outputs: 
+      deploy-reviewer-test:
+        description: The GitHub user who can approve the deployment to test environment
+        value: ${{ jobs.start.outputs.deploy-reviewer-test }}
+      deploy-reviewer-prod:
+        description: The GitHub user who can approve the deployment to prod environment
+        value: ${{ jobs.start.outputs.deploy-reviewer-prod }}
+      pr-approver:
+        description: The GitHub user who can approve the pull request.
+        value: ${{ jobs.start.outputs.pr-approver }}
+jobs:
+  start:
+    name: 🚀 Start CI/CD
+    outputs:
+      deploy-reviewer-test: ${{ steps.set-output-params.outputs.deploy-reviewer-test }}
+      deploy-reviewer-prod: ${{ steps.set-output-params.outputs.deploy-reviewer-prod }}
+      pr-approver: ${{ steps.set-output-params.outputs.pr-approver}}
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Start the CloudFormation CI/CD Pipeline
+        id: start-pipelime
+        run: |
+          echo " 🚀  Starting the CloudFormation CI/CD Pipelime"
+
+      - name: Print the input parameters
+        id: print-input-vars
+        run: |
+          echo "Input :: Deploy Reviewer (Test)    : ${{ inputs.deploy-reviewer-test }}"
+          echo "Input :: Deploy Reviewer (Prod)    : ${{ inputs.deploy-reviewer-prod }}"
+          echo "Input :: Pull Request Appover      : ${{ inputs.pr-approver }}"
+
+      - name: Set output variables 
+        id: set-output-params
+        run: |
+          echo "deploy-reviewer-test=${{ inputs.deploy-reviewer-test }}" >> $GITHUB_OUTPUT
+          echo "deploy-reviewer-prod=${{ inputs.deploy-reviewer-prod }}" >> $GITHUB_OUTPUT
+          echo "pr-approver=${{ inputs.pr-approver }}" >> $GITHUB_OUTPUT
+
+      - name: Print the output parameters
+        id: promt-output-vars
+        run: |
+          echo "Output :: Deploy Reviewer (Test)    : ${{ steps.set-output-params.outputs.deploy-reviewer-test }}"
+          echo "Output :: Deploy Reviewer (Prod)    : ${{ steps.set-output-params.outputs.deploy-reviewer-prod }}"
+          echo "Output :: Pull Request Appover      : ${{ steps.set-output-params.outputs.pr-approver }}"
