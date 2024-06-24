@@ -67,34 +67,8 @@ jobs:
           echo "*********************** ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json **********************"
           cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
 
-          ##############################  Common  Stack Parameters   ###############################
-          jq -n --arg GitHubURL ${{ github.repositoryUrl }} \
-                --arg GitHubRef ${{ github.ref }} \
-                --arg GitHubSHA ${{ inputs.github-sha }} \
-                --arg GitHubWFRunNumber ${{ github.run_number }}  \
-                --arg CodeRepositoryS3Bucket ${{ secrets.code-repository-s3-bucket }} \
-                --arg GitHubRepository '${{ github.event.repository.name }}' \
-                --arg CiBuild  '-${{ inputs.ci-build }}' \
-                --arg ProjectName '${{ inputs.project-name }}' \
-                --arg KmsMasterKeyId ${{ secrets.kms-key-arn }} \
-                '{"GitHubURL":$GitHubURL,"GitHubRef":$GitHubRef, "GitHubSHA":$GitHubSHA, "GitHubWFRunNumber": $GitHubWFRunNumber, "CodeRepositoryS3Bucket": $CodeRepositoryS3Bucket, "GitHubRepository": $GitHubRepository, "CiBuild": $CiBuild, "ProjectName": $ProjectName, "KmsMasterKeyId": $KmsMasterKeyId}' | \
-                jq -r 'to_entries'| \
-                jq 'map(.ParameterKey = .key| .ParameterValue = .value| del(.key, .value))' \
-                > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json
-          echo "*********************** ${{ github.workspace }}/cfn-common-parameters.json ****************"
-          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json
 
-          ##############################  Combined Parameters   ####################################
-          jq -s '.[0] + .[1]' ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json \
-                              ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json
-
-          echo "********************* ${{ github.workspace }}/cfn-combined-parameters.json **************************************************"
-          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json
-          echo "*****************************************************************************************************************************"
-          mv ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
-          echo "********************* ${{ github.workspace }}/cfn-parameters.json **************************************************"
-          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
-
+          exit(0)
       ##############################################################################################
       ########## Prepare the parameter file -- End
       ##############################################################################################
