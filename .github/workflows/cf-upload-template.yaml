@@ -64,7 +64,7 @@ jobs:
                                       jq -r '.parameters.devl[0]'| \
                                       jq -r 'to_entries'| \
                                       jq 'map(.ParameterKey = .key| .ParameterValue = .value | del(.key, .value))' > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
-          echo "*********************** ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-paramaters.json **********************"
+          echo "*********************** ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json **********************"
           cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
 
           ##############################  Common  Stack Parameters   ###############################
