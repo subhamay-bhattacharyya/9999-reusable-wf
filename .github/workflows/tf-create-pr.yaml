@@ -151,13 +151,14 @@ jobs:
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: POST /repos/{owner}/{repo}/pulls
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          # route: POST /repos/{owner}/{repo}/pulls
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           title: ${{ inputs.pr-title }}
           head: ${{ github.ref_name }} 
           base: "main"

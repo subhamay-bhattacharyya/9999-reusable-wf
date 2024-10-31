@@ -54,9 +54,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: GET /repos/{owner}/{repo}/environments
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: GET /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
 
       - name: Get Issue
         id: get-branch-issue
@@ -64,9 +64,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: GET /repos/{owner}/{repo}/issues/{issue_number}
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: GET /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/{issue_number}
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           issue_number: ${{ steps.get-repo-details.outputs.issue-id }}
           
       - name: Print Repository Details
@@ -89,9 +89,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/runs/{run_id}/cancel
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           run_id: ${{ github.run_id }}
 
       - name: Check if there is an open issue created for the feature branch
@@ -107,9 +107,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: PATCH /repos/{owner}/{repo}
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PATCH /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           delete_branch_on_merge: true
 
       - name: Create Development Environment
@@ -119,9 +119,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: PUT /repos/{owner}/{repo}/environments/{environment_name} 
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/{environment_name} 
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           environment_name: devl
 
       - name: Create Test Environment
@@ -129,9 +129,9 @@ jobs:
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
         uses: octokit/request-action@main
         with:
-          route: PUT /repos/{owner}/{repo}/environments/{environment_name}
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/{environment_name}
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           environment_name: test
           reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
         env:
@@ -142,9 +142,9 @@ jobs:
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
         uses: octokit/request-action@main
         with:
-          route: PUT /repos/{owner}/{repo}/environments/{environment_name}
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/{environment_name}
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           environment_name: prod
           wait_timer: 5
           reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-prod }} }]'
@@ -157,9 +157,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: PUT /repos/{owner}/{repo}/branches/{branch}/protection
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/branches/{branch}/protection
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           branch: main
           enforce_admins: true
           required_pull_request_reviews: |
@@ -186,9 +186,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: PUT /repos/{owner}/{repo}/collaborators/{username}
-          owner: ${{ github.repository_owner }}
-          repo: ${{ github.event.repository.name }}
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/collaborators/{username}
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
           username: ${{ inputs.pr-approver }}
           permission: maintain
 
