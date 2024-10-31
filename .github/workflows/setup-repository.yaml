@@ -185,5 +185,8 @@ jobs:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/collaborators/${{ inputs.pr-approver }}
           mediaType: |
             format: raw
-          permission: maintain
+          body: |
+            {
+              "permission": "maintain"
+            }
 
