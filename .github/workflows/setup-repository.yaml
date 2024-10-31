@@ -103,7 +103,7 @@ jobs:
 
       - name: Set delete branch on merge
         id: update-repository
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -115,7 +115,7 @@ jobs:
       - name: Create Development Environment
         id: create-devl-env
         if: ${{ fromJSON(steps.list-environments.outputs.data).total_count == '' }}
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -127,7 +127,7 @@ jobs:
       - name: Create Test Environment
         id: create-test-env
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         with:
           route: PUT /repos/{owner}/{repo}/environments/{environment_name}
           owner: ${{ github.repository_owner }}
@@ -140,7 +140,7 @@ jobs:
       - name: Create Production Environment
         id: create-prod-env
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         with:
           route: PUT /repos/{owner}/{repo}/environments/{environment_name}
           owner: ${{ github.repository_owner }}
@@ -153,7 +153,7 @@ jobs:
 
       - name: Set Branch Protection Rule
         id: set-branch-protection
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -182,7 +182,7 @@ jobs:
 
       - name: Add Repository Collaborator
         id: add-repo-collaborator
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
