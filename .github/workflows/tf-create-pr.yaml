@@ -41,13 +41,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials from AWS account
-        id: configure-aws-credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
-          role-session-name: github-aws-terraform-oidc
+      # - name: Configure AWS credentials from AWS account
+      #   id: configure-aws-credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: ${{ secrets.aws-role-arn }}
+      #     aws-region: ${{ secrets.aws-region }}
+      #     role-session-name: github-aws-terraform-oidc
 
       - name: Add GitHub attributes to terraform.tfvars file
         id: add-gihub-attributes
@@ -65,12 +65,12 @@ jobs:
           echo "=========================================== terraform.tfvars ==========================================="
           cat terraform.tfvars 
 
-      - name: Configure and cache Terraform plugin
-        id: plugin
-        uses: subhamay-bhattacharyya/9996-tf-plugin@main
-        with:
-          tf-version: ${{ inputs.terraform-ver }}
-          caching: 'true'
+      # - name: Configure and cache Terraform plugin
+      #   id: plugin
+      #   uses: subhamay-bhattacharyya/9996-tf-plugin@main
+      #   with:
+      #     tf-version: ${{ inputs.terraform-ver }}
+      #     caching: 'true'
 
       - name: Output Cache used
         id: cache-used
@@ -142,7 +142,7 @@ jobs:
           echo "</html>"                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
           echo "************** Pull Request Body ***************"
           cat ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
-          
+
       - name: Read file contents
         id: read-file
         uses: andstor/file-reader-action@v1
@@ -151,7 +151,7 @@ jobs:
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
