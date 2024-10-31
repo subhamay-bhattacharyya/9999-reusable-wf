@@ -21,6 +21,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@main
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '20'
+
       - name: Print github.ref_name
         run: |
           echo "GitHub ref_name : ${{ github.ref_name }}"
@@ -48,7 +53,7 @@ jobs:
 
       - name: Create Release
         id: create-release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v1.1.4
         env:
           GITHUB_TOKEN: ${{ secrets.github_token }}
         with:
