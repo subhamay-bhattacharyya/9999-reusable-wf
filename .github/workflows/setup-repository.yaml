@@ -136,51 +136,45 @@ jobs:
       - name: Create Production Environment
         id: create-prod-env
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
-        uses: octokit/request-action@v2.4.0
+        uses: octokit/request-action@v2.x
+        with:
+          route: PUT /repos/{owner}/{repo}/environments/{environment_name}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          environment_name: prod
+          wait_timer: 5
+          reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-prod }} }]'
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
-        with:
-          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/prod
-          mediaType: |
-            format: raw
-          body: |
-            {
-              "wait_timer": 5,
-              "reviewers": [
-                {
-                  "type": "User",
-                  "id": ${{ inputs.deploy-reviewer-prod }}
-                }
-              ]
-            }
 
       - name: Set Branch Protection Rule
         id: set-branch-protection
-        uses: octokit/request-action@v2.4.0
+        uses: octokit/request-action@v2.x
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/branches/main/protection
-          mediaType: |
-            format: raw
-          body: |
-            {
-              "enforce_admins": true,
-              "required_pull_request_reviews": {
-                "dismissal_restrictions": {},
-                "dismiss_stale_reviews": true,
-                "require_code_owner_reviews": true,
-                "required_approving_review_count": 1
-              },
-              "required_status_checks": {
-                "strict": false,
-                "contexts": []
-              },
-              "restrictions": {
-                "users": [],
-                "teams": []
-              }
-            }
+          # owner: ${{ github.repository_owner }}
+          # repo: ${{ github.event.repository.name }}
+          # branch: main
+          enforce_admins: true
+          required_pull_request_reviews: |
+                    {
+                        "dismissal_restrictions":{},
+                        "dismiss_stale_reviews":true,
+                        "require_code_owner_reviews":true,
+                        "required_approving_review_count":1
+                    }
+          required_status_checks: |
+                    {
+                      "strict": false,
+                      "contexts": []
+                    }
+          restrictions: |
+                    {
+                        "users":[],
+                        "teams":[]
+                    }
 
       - name: Add Repository Collaborator
         id: add-repo-collaborator
@@ -191,8 +185,5 @@ jobs:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/collaborators/${{ inputs.pr-approver }}
           mediaType: |
             format: raw
-          body: |
-            {
-              "permission": "maintain"
-            }
+          permission: maintain
 
