@@ -1,0 +1,66 @@
+name: "Destroy"
+
+on: 
+  workflow_call:
+    secrets: 
+      aws-region: 
+        required: true
+      devl-aws-role-arn: 
+        required: true
+      devl-kms-key-arn: 
+        required: true
+      devl-aws-tf-state-bucket-name: 
+        required: true
+      test-aws-role-arn: 
+        required: true
+      test-kms-key-arn: 
+        required: true
+      test-aws-tf-state-bucket-name: 
+        required: true
+      prod-aws-role-arn: 
+        required: true
+      prod-kms-key-arn: 
+        required: true
+      prod-aws-tf-state-bucket-name: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR  
+
+jobs:
+  _1-devl:
+    name: "Terraform Destroy (devl)"
+    uses: ./.github/workflows/tf-destroy.yaml
+    with:
+      github-env: devl
+      # tfvar-file: devl.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  _2-test:
+    name: "Terraform Destroy (test)"
+    needs: [ _1-devl ]
+    uses: ./.github/workflows/tf-destroy.yaml
+    with:
+      github-env: test
+      # tfvar-file: test.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.test-aws-role-arn }}
+      kms-key-arn: ${{ secrets.test-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  _3-prod:
+    name: "Terraform Destroy (prod)"
+    needs: [ _2-test ]
+    uses: ./.github/workflows/tf-destroy.yaml
+    with:
+      github-env: prod
+      # tfvar-file: prod.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}

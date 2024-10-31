@@ -1,0 +1,125 @@
+name: SAM Delete
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+    outputs: 
+      project-name: 
+        description: "The project name."
+        value: ${{ jobs.sam-package.outputs.project-name }}
+      stack-type: 
+        description: "The stack type."
+        value: ${{ jobs.sam-package.outputs.stack-type }}    
+    secrets:
+      aws-region:
+        required: true
+      aws-sam-pipeline-role-arn:
+        required: true
+      aws-cloudformation-role-arn:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  sam-delete:
+    name: "delete-${{ inputs.github-env }}"
+    outputs:
+      project-name: ${{ steps.get-project-name-stack-type.outputs.project-name }}
+      stack-type: ${{ steps.get-project-name-stack-type.outputs.stack-type }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Setup AWS SAM CLI
+        id: setup-sam-cli
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      
+      - name: Print GitHub context parameters
+        run: |
+          echo "${{ toJSON(github) }}"
+
+      - name: Get Build Artifact
+        if: ${{ ! startsWith(github.ref, 'refs/heads/main') }}
+        id: get-sam-artifacts
+        uses: actions/download-artifact@v3
+        with: 
+          name: sam-artifacts
+
+      - name: Checkout Code
+        if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+        id: git-checkout
+        uses: actions/checkout@main
+
+      - name: Get Project Name and Stack Type
+        if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+        id: get-project-name-stack-type
+        run: |
+          echo "project-name=`jq -r '."project-name"' ${{ github.workspace }}/params/sam-parameters.json`" >> $GITHUB_OUTPUT
+          echo "stack-type=`jq -r '."stack-type"' ${{ github.workspace }}/params/sam-parameters.json`" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ secrets.aws-sam-pipeline-role-arn }}
+          role-session-name: github-aws-sam-oidc-${{ inputs.github-env }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Get SAM Stack Name (Feature Branch)
+        if: ${{ ! startsWith(github.ref, 'refs/heads/main') }}
+        id: sam-stack-feature
+        run: |
+          echo "stack-name-feature=`cat ${{ github.workspace }}/samconfig.toml|grep stack_name|sed 's/ //g'|awk -F'=' '{print $2}'`" >> $GITHUB_OUTPUT
+
+      - name: Get SAM Stack Name (Main Branch)
+        if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+        id: sam-stack-main
+        run: |
+          if [[ "${{ steps.get-project-name-stack-type.outputs.stack-type }}" == "root" ]]; then
+            echo "stack-name-main=${{ steps.get-project-name-stack-type.outputs.project-name }}-rooo-sam-stack" >> $GITHUB_OUTPUT
+          else
+            echo "stack-name-main=${{ steps.get-project-name-stack-type.outputs.project-name }}-sam-stack" >> $GITHUB_OUTPUT
+          fi
+
+      - name: SAM Delete Stack (Feature Branch)
+        if: ${{ ! startsWith(github.ref, 'refs/heads/main') }}
+        id: sam-delete-feature
+        run: |
+            aws cloudformation delete-stack --stack-name ${{ steps.sam-stack-feature.outputs.stack-name-feature }} \
+            --region ${{ secrets.aws-region }} \
+            --role-arn ${{ secrets.aws-cloudformation-role-arn }}
+
+            aws cloudformation wait stack-delete-complete --stack-name ${{ steps.sam-stack-feature.outputs.stack-name-feature }}
+
+      - name: SAM Delete Stack (Main Branch)
+        if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+        id: sam-delete-main
+        run: |
+            aws cloudformation delete-stack --stack-name ${{ steps.sam-stack-main.outputs.stack-name-main }} \
+            --region ${{ secrets.aws-region }} \
+            --role-arn ${{ secrets.aws-cloudformation-role-arn }}
+
+            aws cloudformation wait stack-delete-complete --stack-name ${{ steps.sam-stack-main.outputs.stack-name-main }}
+
+      - name: SAM Delete Status
+        id: sam-delete-status
+        if: steps.sam-delete.outcome == 'failure'
+        run: exit 1
+
+

@@ -1,0 +1,113 @@
+name: CloudFormation Delete Stack
+run-name: Delete
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+    # outputs:
+    #   cfn-stack-name:
+    #     description: "Specifies the stack name."
+    #     value: ${{ jobs.delete.outputs.cfn-stack-name }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  delete:
+    name: "Delete ${{ inputs.github-env }}"
+    # outputs:
+    #   cfn-stack-name: ${{ steps.get-stack-name.outputs.cfn-stack-name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Configure AWS credentials from AWS account
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      - name: Get Stack Name 
+        id: get-stack-name
+        continue-on-error: false
+        env: 
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+        run: |
+          # echo "cfn-stack-name=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          # --key ${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json|jq -r '.TagSet[]|select(.Key=="StackName")|.Value'`" >> $GITHUB_OUTPUT
+
+          echo "cfn-stack-name=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          --key ${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json|jq -r '.TagSet[]|select(.Key=="StackName")|.Value'`" >> $GITHUB_OUTPUT
+
+          echo "cfn-stack-id=`aws s3api get-object-tagging --bucket ${{ secrets.code-repository-s3-bucket }} \
+          --key ${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json |jq -r '.TagSet[]|select(.Key=="StackId")|.Value'`" >> $GITHUB_OUTPUT
+
+      - name: Print Stack Name
+        id: print-stack-name
+        run: |
+          echo "Output :: Stack Name   : ${{ steps.get-stack-name.outputs.cfn-stack-name }}"
+          echo "Output :: Stack Id     : ${{ steps.get-stack-name.outputs.cfn-stack-id }}"
+
+      - name: Delete CloudFormation Stack
+        id: delete-stack
+        run: |
+          aws cloudformation delete-stack --stack-name ${{ steps.get-stack-name.outputs.cfn-stack-name }}
+
+          aws cloudformation wait stack-delete-complete --stack-name ${{ steps.get-stack-name.outputs.cfn-stack-name }}
+
+          echo "cfn-stack-status=`aws cloudformation describe-stacks --stack-name ${{ steps.get-stack-name.outputs.cfn-stack-id }}  --region ${{ secrets.aws-region }}|jq -r '.Stacks[0].StackStatus'`" >> $GITHUB_OUTPUT
+
+      - name: Update the cfn-parameters.json S3 object tags
+        id: update-s3-object-tags
+        if: startsWith(github.ref, 'refs/heads/feature')
+        run: |
+          ## Update the S3 object tags and wipe off the CiBuild tag
+          aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix ${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json \
+          --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+          --bucket ${{ secrets.code-repository-s3-bucket }} --tagging '{
+                                                                            "TagSet":[
+                                                                                {
+                                                                                  "Key": "StackStatus",
+                                                                                  "Value": "${{ steps.delete-stack.outputs.cfn-stack-status }}"
+                                                                                },
+                                                                                {
+                                                                                  "Key": "StackName",   
+                                                                                  "Value": "${{ steps.get-cfn-stack-name.outputs.cfn-stack-name }}"
+                                                                                },
+                                                                                {
+                                                                                  "Key": "StackId",
+                                                                                  "Value": "${{ steps.get-stack-name.outputs.cfn-stack-id }}"
+                                                                                },
+                                                                                {
+                                                                                  "Key": "CiBuild",
+                                                                                  "Value": "-"
+                                                                                },
+                                                                                {
+                                                                                  "Key": "GitHubWFRunNumber",
+                                                                                  "Value": "${{ github.run_number }}"
+                                                                                }
+                                                                              ]
+                                                                          }' --key
+
+
+
+    

@@ -1,0 +1,35 @@
+name: Configure AWS
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+
+jobs:
+  configure:
+    name: "Configure AWS - ${{ inputs.github-env }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Configure AWS credentials from AWS account
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc

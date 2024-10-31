@@ -1,0 +1,96 @@
+name: Upload Lambda Code
+run-name: Upload Lambda
+
+on:
+  workflow_call:
+    inputs:
+      github-sha:
+        description: 'GitHub SHA to be used as a part of S3 Bucket key.'
+        required: true
+        type: string
+    outputs:
+      lambda-code-upload-status: 
+        description: 'Specifies the status of Lambda code upload.'
+        value: ${{ jobs.package.outputs.lambda-code-upload-status }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn:
+        required: true
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+jobs:
+  package:
+    name: "Upload Lambda Code"
+    outputs:
+      lambda-code-upload-status: ${{ steps.upload-lambda-code-to-s3.outputs.lambda-code-upload-status }}
+    runs-on: ubuntu-latest # [self-hosted, Linux, X64, Subhamay-GH-Runner]
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Print the job input parameters
+        id: print-job-input-params
+        run: |
+          echo "Input :: GitHub SHA                : ${{ inputs.github-sha }}"
+
+      ####################################################
+      ########## Checkout Code
+      ####################################################
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      ##############################################################################################
+      ########## Configure AWS Credentials
+      ##############################################################################################
+      - name: Configure AWS credentials from AWS account
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      ##############################################################################################
+      ########### Upload Lambda to S3 repository Bucket
+      ##############################################################################################
+      - name: Upload Lambda code to S3 Repository Bucket
+        id: upload-lambda-code-to-s3
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+          KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+        run: |
+          echo "Uploading Lambda code to S3 repository"
+          ## Lambda Code
+          if [ -d ${{ github.workspace }}/lambda-code ];then
+            cd ${{ github.workspace }}/lambda-code
+            for file_name in `ls *`
+            do
+              zip_file="`echo ${file_name}|cut -d'.' -f1`.zip"
+              zip -r ${zip_file} ${file_name}
+              aws s3 cp ${zip_file} s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ inputs.github-sha }}/lambda-code/ --sse "aws:kms" \
+              --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.zip"
+            done
+          fi
+          echo "lambda-functions-changed=${{ inputs.lambda-functions-changed }}" >> $GITHUB_OUTPUT
+          echo "lambda-code-upload-status=LAMBDA_CODE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      - name: Set Lambda code change status
+        id: set-lambda-code-change-status
+        run: |
+          echo "lambda-code-changed=${{ inputs.lambda-code-changed }}" >> $GITHUB_OUTPUT
+
+      - name: Print the job output parameters
+        id: print-job-output-params
+        run: |
+          echo "Output :: Lambda Code Upload Status : ${{ steps.upload-lambda-code-to-s3.outputs.lambda-code-upload-status }}"

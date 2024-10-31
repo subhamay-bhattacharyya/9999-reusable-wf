@@ -1,0 +1,219 @@
+name: Create Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      pr-title:
+        description: 'Specifies the Pull Request title.'
+        required: true
+        type: string
+        default: "Pull Request"
+      pr-approver:
+        description: 'Specifies the GitHub User who can approve a Pull Request.'
+        required: true
+        type: string
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      git-token:
+        required: true
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+  pull-requests: write # This is required for gh bot to comment PR
+  contents: write
+
+jobs:
+  pull-request:
+    name: "Create Pull Request"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Prepare Stack Name and Template Path
+        id: prepare-stack-name
+        run: |
+          echo "cfn-stack-prefix=`jq -r '."stack-prefix"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "cfn-stack-suffix=`jq -r '."stack-suffix"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "cfn-template-path=`jq -r '."template-path"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "project-name=`jq -r '."project-name"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials from AWS account
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      - name: Print input parameters
+        run: |
+          echo "PR Title       : ${{ inputs.pr-title }}"
+          echo "PR Approver    : ${{ inputs.pr-approver }}"
+          echo "Stack Name     : ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}"
+          echo "Template Path  : ${{ steps.prepare-stack-name.outputs.cfn-template-path }}"
+          echo "head.ref       : ${{ github.event.pull_request.head.ref }}"
+          echo "head.sha       : ${{ github.event.pull_request.head.sha }}"
+          echo "base.ref       : ${{ github.event.pull_request.base.ref }}"
+          echo "base.sha       : ${{ github.event.pull_request.base.sha }}"
+
+      - name: Download template from S3
+        id: download-cfn-template
+        run: |
+          aws s3 cp s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json ${{ github.workspace }}/cfn-parameters.json
+          aws s3 cp s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/${{ steps.prepare-stack-name.outputs.cfn-template-path }} ${{ github.workspace }}/${{ steps.prepare-stack-name.outputs.cfn-template-path }}
+          echo "=============Before removing CiBuild================="
+          cat ${{ github.workspace }}/cfn-parameters.json
+          echo "=============After removing CiBuild================="
+          cat ${{ github.workspace }}/cfn-parameters.json|jq 'del(.[] | select(.ParameterKey == "CiBuild"))' > ${{ github.workspace }}/cfn-parameters.json.${{ github.sha }}
+          rm -rf ${{ github.workspace }}/cfn-parameters.json 
+          mv ${{ github.workspace }}/cfn-parameters.json.${{ github.sha }} ${{ github.workspace }}/cfn-parameters.json 
+          
+          cat ${{ github.workspace }}/cfn-parameters.json
+      - name: Create Change Set (Single Template)
+        if: ${{ (steps.prepare-stack-name.outputs.cfn-stack-prefix != 'root') }}
+        id: create-change-set
+        run: |
+          echo "cfn-change-set-id=`aws cloudformation create-change-set \
+              --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}  \
+              --change-set-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }} \
+              --template-body file:///${{ github.workspace }}/${{ steps.prepare-stack-name.outputs.cfn-template-path }} \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameters file:///${{ github.workspace }}/cfn-parameters.json \
+              --change-set-type CREATE|jq '.Id'`" >> $GITHUB_OUTPUT
+
+          aws cloudformation wait change-set-create-complete \
+          --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}  \
+          --change-set-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }} \
+
+      - name: Create Change Set (Root with Nested Templates)
+        if: ${{ (steps.prepare-stack-name.outputs.cfn-stack-prefix == 'root') }}
+        id: create-change-set-root-stack
+        run: |
+          echo "cfn-change-set-id=`aws cloudformation create-change-set \
+              --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}  \
+              --change-set-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }} \
+              --template-body file:///${{ github.workspace }}/${{ steps.prepare-stack-name.outputs.cfn-template-path }} \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --parameters file:///${{ github.workspace }}/cfn-parameters.json \
+              --include-nested-stacks \
+              --change-set-type CREATE|jq '.Id'`" >> $GITHUB_OUTPUT
+
+          aws cloudformation wait change-set-create-complete \
+          --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}  \
+          --change-set-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }} \
+
+      - name: Describe Change Set JSON (Single Template)
+        if: ${{ (steps.prepare-stack-name.outputs.cfn-stack-prefix != 'root') }}
+        id: describe-change-set
+        run: |
+          aws cloudformation describe-change-set --change-set-name ${{ steps.create-change-set.outputs.cfn-change-set-id }}|jq -r '.Changes' > ${{ github.workspace }}/change-set-${{ github.sha }}.json
+
+          aws cloudformation delete-stack --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}
+          echo "***************************************Change Set**************************************"
+          cat ${{ github.workspace }}/change-set-${{ github.sha }}.json
+
+      - name: Describe Change Set JSON  (Root with Nested Templates)
+        if: ${{ (steps.prepare-stack-name.outputs.cfn-stack-prefix == 'root') }}
+        id: describe-change-set-root-stack
+        run: |
+          aws cloudformation describe-change-set --change-set-name ${{ steps.create-change-set-root-stack.outputs.cfn-change-set-id }}|jq -r '.Changes' > ${{ github.workspace }}/change-set-${{ github.sha }}.json
+
+          aws cloudformation delete-stack --stack-name ${{ steps.prepare-stack-name.outputs.project-name }}-${{ steps.prepare-stack-name.outputs.cfn-stack-prefix }}-${{ steps.prepare-stack-name.outputs.cfn-stack-suffix }}-${{ github.sha }}
+          
+          echo "***************************************Change Set**************************************"
+          cat ${{ github.workspace }}/change-set-${{ github.sha }}.json
+
+      - name: Generate Pull Request Body
+        id: generate-pr-body
+        run: |
+          echo "<html>"                 >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "  <body>"               >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    <p>"                >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    Pull Request request created to merge <b>${{ github.ref_name }}</b> with <b>main</b> for the repository <b>${{ github.event.repository.name }} to add/remove/update the following resources:</b>" >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    </p>"               >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    <font size='1'>"    >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    <table>"            >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "          <th><img alt='Static Badge' src='https://img.shields.io/badge/Action-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Logical_Resource_Id-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Resource_Type-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Replacement-black?style=flat-square&color=ffffff'></th>" >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+
+          ## Loop through the nested stacks and expand the resources
+          for root_stack_res in $(jq -rc '.[]|select(.ResourceChange.ResourceType == "AWS::CloudFormation::Stack")|{ChangeSetId:.ResourceChange.ChangeSetId,LogicalResourceId:.ResourceChange.LogicalResourceId,Replacement:.Replecement}' ${{ github.workspace }}/change-set-${{ github.sha }}.json); do
+            change_set_id=`echo $root_stack_res|jq -r '.ChangeSetId'`
+            logical_resource_id_root=`echo $root_stack_res|jq -r '.LogicalResourceId'`
+            replacement=`echo $root_stack_res|jq -r '.Replacement'|sed 's/null/-/g'`
+
+            for nested_stack_res in $(aws cloudformation describe-change-set --change-set-name $change_set_id|jq -r '.Changes[].ResourceChange|{Action: .Action,ResourceType: .ResourceType,LogicalResourceId:.LogicalResourceId}|@base64'); do
+              resource=`echo ${nested_stack_res}| base64 --decode | jq -r ${1}`
+              action=`echo $resource|jq -r '.Action'`
+              logical_resource_id=`echo $resource|jq -r '.LogicalResourceId'`
+              resource_type=`echo $resource|jq -r '.ResourceType'`
+              echo "$action - $logical_resource_id - resource_type"
+              if [ "$action" = "Add" ]; then
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Add-green?style=soc'>"
+              elif [ "$action" = "Delete" ]; then
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Delete-red?style=soc'>"
+              else
+                action="<img alt='Static Badge' src='https://img.shields.io/badge/Update-yellow?style=soc'>"
+              fi
+              echo "<tr><td>$action</td><td>$logical_resource_id_root => $logical_resource_id</td><td>$resource_type</td><td>$replacement</td></tr>"  >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+            done
+          done
+
+          for row in $(jq -r '.[]|select(.ResourceChange.ResourceType != "AWS::CloudFormation::Stack")|@base64' ${{ github.workspace }}/change-set-${{ github.sha }}.json); do
+            element=`echo ${row}| base64 --decode | jq -r ${1}`
+            action=`echo $element|jq -r '.ResourceChange.Action'`
+            logical_resource_id=`echo $element|jq -r '.ResourceChange.LogicalResourceId'`
+            resource_type=`echo $element|jq -r '.ResourceChange.ResourceType'`
+            replacement=`echo $change_set|jq -r '.ResourceChange.Replacement'|sed s/null/-/g`
+            if [ "$replacement" = "" ]; then
+              replacement="-"
+            fi
+            if [ "$action" = "Add" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Add-green?style=soc'>"
+            elif [ "$action" = "Delete" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Delete-red?style=soc'>"
+            elif [ "$action" = "Update" ]; then
+              action="<img alt='Static Badge' src='https://img.shields.io/badge/Update-yellow?style=soc'>"
+            else
+              action="-${action}-"
+            fi
+            echo "<tr><td>$action</td><td>$logical_resource_id</td><td>$resource_type</td><td>$replacement</td></tr>" >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          done
+
+          echo "    </table>"           >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "    </font>"            >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "  </body>"              >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "</html>"                >> ${{ github.workspace }}/change-set-${{ github.sha }}.md
+          echo "************** Pull Request Body ***************"
+          cat ${{ github.workspace }}/change-set-${{ github.sha }}.md
+
+      - name: Read file contents
+        id: read-file
+        uses: andstor/file-reader-action@v1
+        with:
+          path: ${{ github.workspace }}/change-set-${{ github.sha }}.md
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: octokit/request-action@v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
+        with:
+          route: POST /repos/{owner}/{repo}/pulls
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          title: ${{ inputs.pr-title }}
+          head: ${{ github.ref_name }} 
+          base: "main"
+          body: "${{ steps.read-file.outputs.contents }}"
+          
+

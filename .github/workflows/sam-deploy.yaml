@@ -1,0 +1,90 @@
+name: SAM Deploy
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+    outputs:
+      stack-name:
+        description: "Specifies the stack name"
+        value: ${{ jobs.sam-deploy.outputs.stack-name }}
+    secrets:
+      aws-region:
+        required: true
+      aws-sam-pipeline-role-arn:
+        required: true
+      aws-cloudformation-role-arn:
+        required: true
+      aws-sam-artifacts-bucket-name:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  sam-deploy:
+    name: "deploy-${{ inputs.github-env }}"
+    outputs:
+      stack-name: ${{ steps.sam-stack-name.outputs.stack-name }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Setup AWS SAM CLI
+        id: setup-sam-cli
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ secrets.aws-sam-pipeline-role-arn }}
+          role-session-name: github-aws-sam-oidc-${{ inputs.github-env }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Get Build Artifact
+        id: get-sam-artifacts
+        uses: actions/download-artifact@v3
+        with: 
+          name: sam-artifacts
+
+      - name: Get Stack and Change Set Names
+        id: sam-stack-name
+        run: |
+          echo "stack-name=`cat ${{ github.workspace }}/samconfig.toml|grep stack_name|sed 's/ //g'|awk -F'=' '{print $2}'`" >> $GITHUB_OUTPUT
+
+      - name: SAM Deploy
+        id: sam-deploy
+        run: |
+            echo "*****Stack Name = ${{ steps.sam-stack-name.outputs.stack-name }}"
+
+            sam deploy --stack-name ${{ steps.sam-stack-name.outputs.stack-name }} \
+            --template ${{ github.workspace }}/packaged-template.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ secrets.aws-region }} \
+            --s3-bucket ${{ secrets.aws-sam-artifacts-bucket-name }} \
+            --s3-prefix ${{ github.event.repository.name }}/${{ github.sha }} \
+            --no-fail-on-empty-changeset \
+            --no-confirm-changeset \
+            --role-arn  ${{ secrets.aws-cloudformation-role-arn }} \
+            --config-file ${{ github.workspace }}/samconfig.toml 
+
+      - name: SAM Deploy Status
+        id: sam-deploy-status
+        if: steps.sam-deploy.outcome == 'failure'
+        run: exit 1
+
+                   

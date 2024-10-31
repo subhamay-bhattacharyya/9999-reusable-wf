@@ -1,0 +1,34 @@
+name: Drift Detection
+
+'on':
+  workflow_call:
+    secrets:
+      git-token:
+        required: true
+      aws-region:
+        required: true
+      prod-aws-role-arn:
+        required: true
+      prod-kms-key-arn:
+        required: true
+      prod-aws-tf-state-bucket-name:
+        required: true
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: write # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR  
+  issues: write
+
+jobs:
+  detect-drift:
+    name: "Terraform Plan (prod)"
+    uses: ./.github/workflows/tf-plan.yaml
+    with:
+      github-env: prod
+      tfvar-file: prod.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}

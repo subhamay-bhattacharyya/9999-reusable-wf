@@ -1,0 +1,219 @@
+name: "SAM Build and Deploy"
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+    outputs:
+      ci-build:
+        description: "CI Build"
+        value: ${{ jobs.sam-package.outputs.ci-build }}
+      ci-build-long:
+        description: "CI Build (long) used as Stack Name suffix"
+        value: ${{ jobs.sam-package.outputs.ci-build-long }}
+      project-name: 
+        description: "The project name."
+        value: ${{ jobs.sam-package.outputs.project-name }}
+      stack-type: 
+        description: "The stack type."
+        value: ${{ jobs.sam-package.outputs.stack-type }}
+    secrets:
+      aws-region:
+        required: true
+      aws-sam-pipeline-role-arn:
+        required: true
+      aws-cloudformation-role-arn:
+        required: true
+      aws-sam-artifacts-bucket-name:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  sam-package:
+    name: "package-${{ inputs.github-env }}"
+    outputs:
+      ci-build: ${{ steps.get-ci-build.outputs.ci-build }}
+      ci-build-long: ${{ steps.get-ci-build.outputs.ci-build-long }}
+      project-name: ${{ steps.get-project-name-stack-type.outputs.project-name }}
+      stack-type: ${{ steps.get-project-name-stack-type.outputs.stack-type }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      - name: Print Secrets
+        id: print-secrets
+        run: |
+          echo ${{ secrets.aws-cloudformation-role-arn }} | sed 's/./& /g'
+          echo ${{ secrets.kms-key-arn }} | sed 's/./& /g'
+          echo ${{ secrets.aws-cloudformation-role-arn }} | sed 's/./& /g'
+          echo ${{ secrets.aws-sam-artifacts-bucket-name }} | sed 's/./& /g'
+          echo ${{ secrets.aws-sam-pipeline-role-arn }} | sed 's/./& /g'
+
+      - name: Generate CiBuild String
+        id: get-ci-build
+        if: startsWith(github.ref, 'refs/heads/feature')
+        run: |
+          echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
+          tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT
+          echo "ci-build-long=`echo -${{ github.ref_name }}|sed s'/\//-/g'|head -c 20|tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 20`" >> $GITHUB_OUTPUT
+
+      - name: Get Project Name and Stack Type
+        id: get-project-name-stack-type
+        run: |
+          echo "project-name=`jq -r '."project-name"' ${{ github.workspace }}/params/sam-parameters.json`" >> $GITHUB_OUTPUT
+          echo "stack-type=`jq -r '."stack-type"' ${{ github.workspace }}/params/sam-parameters.json`" >> $GITHUB_OUTPUT
+
+      - name: Get Stack Params for Feature Branch
+        id: feature-branch-params
+        if: startsWith(github.ref, 'refs/heads/feature')
+        run: |
+          jq -n --arg GitHubURL ${{ github.repositoryUrl }} \
+                --arg GitHubRef ${{ github.ref }} \
+                --arg GitHubSHA ${{ github.sha }} \
+                --arg GitHubWFRunNumber ${{ github.run_number }}  \
+                --arg CodeRepositoryS3Bucket ${{ secrets.aws-sam-artifacts-bucket-name }} \
+                --arg GitHubRepository '${{ github.event.repository.name }}' \
+                --arg CiBuild  '-${{ steps.get-ci-build.outputs.ci-build }}' \
+                --arg ProjectName '${{ steps.get-project-name-stack-type.outputs.project-name }}' \
+                --arg KmsMasterKeyId ${{ secrets.kms-key-arn }} \
+                '{"GitHubURL":$GitHubURL,"GitHubRef":$GitHubRef, "GitHubSHA":$GitHubSHA, "GitHubWFRunNumber": $GitHubWFRunNumber, "CodeRepositoryS3Bucket": $CodeRepositoryS3Bucket, "GitHubRepository": $GitHubRepository, "CiBuild": $CiBuild, "ProjectName": $ProjectName, "KmsMasterKeyId": $KmsMasterKeyId}'  \
+                > ${{ github.workspace }}/params/GitHubAttrubutes.json
+          echo "*********************** github.workspace / GitHubAttrubutes.json ****************"
+          cat ${{ github.workspace }}/params/GitHubAttrubutes.json
+
+      - name: Get Stack Params for Main Branch
+        id: main-branch-params
+        if: startsWith(github.ref, 'refs/heads/main')
+        run: |
+            jq -n --arg GitHubURL ${{ github.repositoryUrl }} \
+                  --arg GitHubRef ${{ github.ref }} \
+                  --arg GitHubSHA ${{ github.sha }} \
+                  --arg GitHubWFRunNumber ${{ github.run_number }}  \
+                  --arg CodeRepositoryS3Bucket ${{ secrets.aws-sam-artifacts-bucket-name }} \
+                  --arg GitHubRepository `echo ${{ github.event.repository.name }}` \
+                  --arg CiBuild "" \
+                  --arg ProjectName '${{ steps.get-project-name-stack-type.outputs.project-name }}' \
+                  --arg KmsMasterKeyId ${{ secrets.kms-key-arn }} \
+                  '{"GitHubURL":$GitHubURL,"GitHubRef":$GitHubRef, "GitHubSHA":$GitHubSHA, "GitHubWFRunNumber": $GitHubWFRunNumber, "CodeRepositoryS3Bucket": $CodeRepositoryS3Bucket, "GitHubRepository": $GitHubRepository, "ProjectName": $ProjectName, "KmsMasterKeyId": $KmsMasterKeyId}' \
+                  > ${{ github.workspace }}/params/GitHubAttrubutes.json
+            echo "*********************** github.workspace / GitHubAttrubutes.json ****************"
+            cat ${{ github.workspace }}/params/GitHubAttrubutes.json
+
+      - name: Prepare the stack parameter file
+        id: sam-parameters
+        run: |
+          if [[ ${{ inputs.github-env }} == "feature" ]]; then
+            cat ${{ github.workspace }}/params/sam-parameters.json|jq -r '.parameters.devl[0]' > ${{ github.workspace }}/params/sam-parameters-${{ inputs.github-env }}.json
+          else
+            cat ${{ github.workspace }}/params/sam-parameters.json|jq -r '.parameters.${{ inputs.github-env }}[0]' > ${{ github.workspace }}/params/sam-parameters-${{ inputs.github-env }}.json
+            # |jq -c|sed 's/"//g'|tr -d '{}'|sed 's/:/=\\"/g'|sed 's/,/\\", /g'|sed 's/$/\\"/g' > ${{ github.workspace }}/params/parameters-${{ inputs.github-env }}.json
+          fi
+          jq -s '.[0] + .[1]' ${{ github.workspace }}/params/sam-parameters-${{ inputs.github-env }}.json \
+                              ${{ github.workspace }}/params/GitHubAttrubutes.json > ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.json
+
+          echo "*********************** ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.json  **********************"
+          cat ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.json
+          echo "*********************** ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.txt **********************"
+
+          cat ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.json | \
+              jq -r 'to_entries'| \
+              jq 'map(.ParameterKey = .key| .ParameterValue = .value | del(.key, .value))' | \
+              jq --raw-output '.[] | [.ParameterKey, .ParameterValue]| @csv' |sed 's/"//g'| \
+              awk -F"," '{ printf"%s=\\\"%s\\\" ", $1, $2}' > ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.txt
+          cat ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.txt
+          echo "*******************************************************************************************************"
+          echo "sam-parameters=`cat ${{ github.workspace }}/params/sam-template-parameters-${{ inputs.github-env }}.txt`" >> $GITHUB_OUTPUT
+
+      - name: Prepare samconfig.toml
+        id: samconfig
+        run: |
+          rm -rf ${{ github.workspace }}/samconfig.toml
+          touch ${{ github.workspace }}/samconfig.toml
+          echo 'version = 0.1'                                                                                                                               >> ${{ github.workspace }}/samconfig.toml
+          echo '[default]'                                                                                                                                   >> ${{ github.workspace }}/samconfig.toml
+          echo '[default.deploy]'                                                                                                                            >> ${{ github.workspace }}/samconfig.toml
+          echo '[default.deploy.parameters]'                                                                                                                 >> ${{ github.workspace }}/samconfig.toml
+          if [[ "${{ steps.get-project-name-stack-type.outputs.stack-type }}" == "root" ]]; then
+            echo 'stack_name = "${{ steps.get-project-name-stack-type.outputs.project-name }}-sam-root-stack${{ steps.get-ci-build.outputs.ci-build-long }}"' >> ${{ github.workspace }}/samconfig.toml
+          else
+            echo 'stack_name = "${{ steps.get-project-name-stack-type.outputs.project-name }}-sam-stack${{ steps.get-ci-build.outputs.ci-build-long }}"'     >> ${{ github.workspace }}/samconfig.toml
+          fi
+          echo 's3_bucket = "${{ secrets.aws-sam-artifacts-bucket-name }}"'                                                                                  >> ${{ github.workspace }}/samconfig.toml
+          echo 's3_prefix = "${{ github.event.repository.name }}/${{ github.sha }}"'                                                                         >> ${{ github.workspace }}/samconfig.toml
+          echo 'region = "${{ secrets.aws-region }}"'                                                                                                        >> ${{ github.workspace }}/samconfig.toml
+          echo 'confirm_changeset = true'                                                                                                                    >> ${{ github.workspace }}/samconfig.toml
+          echo 'capabilities = "CAPABILITY_NAMED_IAM"'                                                                                                       >> ${{ github.workspace }}/samconfig.toml
+          echo 'parameter_overrides = "${{ steps.sam-parameters.outputs.sam-parameters }}"'                                                                  >> ${{ github.workspace }}/samconfig.toml
+          echo 'image_repositories = []'                                                                                                                     >> ${{ github.workspace }}/samconfig.toml
+          echo 'disable_rollback = true'                                                                                                                     >> ${{ github.workspace }}/samconfig.toml
+          echo '+ Start ************************ samconfig.toml *****************************************'
+          cat ${{ github.workspace }}/samconfig.toml
+          echo '+ End ************************** samconfig.toml *****************************************'
+          rm -rf ${{ github.workspace }}/ci-build-string.txt
+          echo "ci-build=${{ steps.get-ci-build.outputs.ci-build }}"                                                                               > ${{ github.workspace }}/ci-build-string.txt
+          echo "ci-build-long=${{ steps.get-ci-build.outputs.ci-build-long }}"                                                                     >> ${{ github.workspace }}/ci-build-string.txt
+
+      - name: Setup AWS SAM CLI
+        id: setup-sam-cli
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ secrets.aws-sam-pipeline-role-arn }}
+          role-session-name: github-aws-sam-oidc-${{ inputs.github-env }}
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+
+      - name: Validate SAM template
+        id: sam-validate
+        run: |
+          sam validate --config-file ${{ github.workspace }}/samconfig.toml \
+            --region ${{ secrets.aws-region }} \
+            --template-file ${{ github.workspace }}/template.yaml
+
+      - name: Upload artifacts to artifact buckets
+        id: sam-package
+        run: |
+          sam package \
+            --s3-bucket ${{ secrets.aws-sam-artifacts-bucket-name }} \
+            --s3-prefix ${{ github.event.repository.name }}/${{ github.sha }} \
+            --region ${{ secrets.aws-region }} \
+            --output-template-file ${{ github.workspace }}/packaged-template.yaml
+
+      - name: Upload Artifacts
+        id: upload-artifact
+        uses: actions/upload-artifact@v3
+        with: 
+          name: sam-artifacts
+          path: |
+            ${{ github.workspace }}/samconfig.toml
+            ${{ github.workspace }}/packaged-template.yaml
+            ${{ github.workspace }}/ci-build-string.txt
+          if-no-files-found: error
+
+      - name: SAM Package Status
+        id: sam-package-status
+        if: steps.sam-package.outcome == 'failure'
+        run: exit 1
+          

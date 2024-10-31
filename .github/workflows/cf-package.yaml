@@ -1,0 +1,401 @@
+name: CloudFormation Package
+run-name: Build and Package 
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: Specifies the GitHub deployment environment.
+        required: false
+        type: string
+        default: devl
+      cfn-template-path:
+        description: 'Specifies the CloudFormation template path from the base folder that will be executed.'
+        required: true
+        type: string
+      template-changed: 
+        description: 'Specifies if the CloudFormation template was changed.'
+        required: true
+        type: string
+      lambda-code-changed:
+        description: 'Specifies if the Lambda Layer code was changed.'
+        required: true
+        type: string
+      lambda-functions-changed:
+        description: 'Specifies the list of lambda functions whose code was changed.'
+        required: true
+        type: string
+      # glue-code-changed: 
+      #   description: 'Specifies if the Glue code was changed.'
+      #   required: true
+      #   type: string
+      # container-file-changed: 
+      #   description: 'Specifies if the container code was changed.'
+      #   required: true
+      #   type: string
+      # asl-file-changed: 
+      #   description: 'Specifies if the Lambda Layer code was changed.'
+      #   required: true
+      #   type: string
+      # lambda-layer-code-changed:
+      #   description: 'Specifies the Lambda codes that were changed.'
+      #   required: true
+      #   type: string
+    outputs:
+      cfn-template-path:
+        description: 'Specifies the CloudFormation Template path.'
+        value: ${{ jobs.package.outputs.cfn-template-path }}
+      cft-upload-status: 
+        description: 'Specifies the status of CloudFormation Template upload.'
+        value: ${{ jobs.package.outputs.cft-upload-status }}
+      lambda-code-upload-status: 
+        description: 'Specifies the status of Lambda code upload.'
+        value: ${{ jobs.package.outputs.lambda-code-upload-status }}
+      lambda-functions-changed:
+        description: The list of Lambda function names whose code were changed.
+        value: ${{ jobs.create.outputs.lambda-functions-changed }}
+      # glue-code-upload-status:
+      #   description: 'Specifies the status of Glue Code upload.'
+      #   value: ${{ jobs.package.outputs.glue-code-upload-status }}
+      # asl-file-upload-status: 
+      #   description: 'Specifies the status of ASL file upload.'
+      #   value: ${{ jobs.package.outputs.asl-file-upload-status }}
+      # lambda-layer-code-upload-status: 
+      #   description: 'Specifies the status of Lambda layer code upload.'
+      #   value: ${{ jobs.package.outputs.lambda-layer-code-upload-status }}
+      # docker-build-status:
+      #   description: 'Specifies the docker build status.'
+      #   value: ${{ jobs.package.outputs.docker-build-status }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn:
+        required: true
+      dockerhub-username:
+        required: false
+      dockerhub-token:
+        required: false
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+jobs:
+  package:
+    name: "Build and Package"
+    outputs:
+      cfn-template-path: ${{ steps.get-stack-name-segments.outputs.cfn-template-path }}
+      cft-upload-status: ${{ steps.s3-upload-cft.outputs.cft-upload-status }}
+      lambda-code-upload-status: ${{ steps.upload-lambda-code-to-s3.outputs.lambda-code-upload-status }}
+      lambda-functions-changed: ${{ steps.set-output-params.outputs.lambda-functions-changed }}
+      # glue-code-upload-status: ${{ steps.upload-glue-code-to-s3.outputs.glue-code-upload-status }}
+      # lambda-layer-code-upload-status: ${{ steps.upload-lambda-layer-code-to-s3.outputs.lambda-layer-code-upload-status }}
+      # docker-build-status: ${{ steps.docker-build-push-success.outputs.docker-build-status }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Print the job input parameters
+        id: print-job-input-params
+        run: |
+          echo "Input :: GitHub Envronment         : ${{ inputs.github-env }}"
+          echo "Input :: CF Template Path          : ${{ inputs.cfn-template-path }}"
+          echo "Input :: Template Changed          : ${{ inputs.template-changed }}"
+          echo "Input :: Lambda Code Changed       : ${{ inputs.lambda-code-changed }}"
+          echo "Input :: Lambda Functions Changed  : `echo ${{ inputs.lambda-functions-changed }}|base64 -d`"
+          # echo "Input :: Glue Code Changed         : ${{ inputs.glue-code-changed }}"
+          # echo "Input :: Container File Changed    : ${{ inputs.container-file-changed }}"
+          # echo "Input :: ASL File Changed          : ${{ inputs.asl-file-changed }}"
+          # echo "Input :: Lambda Layer Code Changed : ${{ inputs.lambda-layer-code-changed }}"
+
+      ####################################################
+      ########## Checkout Code
+      ####################################################
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      ##############################################################################################
+      ########## Prepare the parameter file -- Start
+      ##############################################################################################
+      - name: Generate CiBuild String
+        id: get-ci-build-string
+        run: |
+          echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
+          tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT
+          echo "ci-build-long=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 20|tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 20`" >> $GITHUB_OUTPUT
+
+      - name: Print CiBuild String
+        id: print-ci-build-string
+        run: |
+          echo "ci-build = ${{ steps.get-ci-build-string.outputs.ci-build }}"
+          echo "ci-build-long = ${{ steps.get-ci-build-string.outputs.ci-build-long }}"
+
+      - name: Get the stack prefix, suffix, template path and project name 
+        id: get-stack-name-segments
+        run: |
+          echo "cfn-stack-prefix=`jq -r '."stack-prefix"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "cfn-stack-suffix=`jq -r '."stack-suffix"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "cfn-template-path=`jq -r '."template-path"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+          echo "project-name=`jq -r '."project-name"' ${{ github.workspace }}/params/cfn-parameters.json`" >> $GITHUB_OUTPUT
+
+      - name: Print template prefix, suffix, path and project name 
+        id: print-stack-name-segments
+        run: |
+          echo "cfn-stack-prefix = ${{ steps.get-stack-name-segments.outputs.cfn-stack-prefix }}"
+          echo "cfn-stack-suffix = ${{ steps.get-stack-name-segments.outputs.cfn-stack-suffix }}"
+          echo "cfn-template-path = ${{ steps.get-stack-name-segments.outputs.cfn-template-path }}"
+          echo "project-name = ${{ steps.get-stack-name-segments.outputs.project-name }}"
+
+      - name: Prepare the stack parameter file
+        id: prepare-param-file
+        run: |
+          ##############################    Stack Parameters   #####################################
+          cat ${{ github.workspace }}/params/cfn-parameters.json| \
+                                      jq -r '.parameters.devl[0]'| \
+                                      jq -r 'to_entries'| \
+                                      jq 'map(.ParameterKey = .key| .ParameterValue = .value | del(.key, .value))' > ${{ github.workspace }}/cfn-parameters.json
+          echo "*********************** ${{ github.workspace }}/cfn-paramaters.json **********************"
+          cat ${{ github.workspace }}/cfn-parameters.json
+
+          ##############################  Common  Stack Parameters   ###############################
+          jq -n --arg GitHubURL ${{ github.repositoryUrl }} \
+                --arg GitHubRef ${{ github.ref }} \
+                --arg GitHubSHA ${{ github.sha }} \
+                --arg GitHubWFRunNumber ${{ github.run_number }}  \
+                --arg CodeRepositoryS3Bucket ${{ secrets.code-repository-s3-bucket }} \
+                --arg GitHubRepository '${{ github.event.repository.name }}' \
+                --arg CiBuild  '-${{ steps.get-ci-build-string.outputs.ci-build }}' \
+                --arg ProjectName '${{ steps.get-stack-name-segments.outputs.project-name }}' \
+                --arg KmsMasterKeyId ${{ secrets.kms-key-arn }} \
+                '{"GitHubURL":$GitHubURL,"GitHubRef":$GitHubRef, "GitHubSHA":$GitHubSHA, "GitHubWFRunNumber": $GitHubWFRunNumber, "CodeRepositoryS3Bucket": $CodeRepositoryS3Bucket, "GitHubRepository": $GitHubRepository, "CiBuild": $CiBuild, "ProjectName": $ProjectName, "KmsMasterKeyId": $KmsMasterKeyId}' | \
+                jq -r 'to_entries'| \
+                jq 'map(.ParameterKey = .key| .ParameterValue = .value| del(.key, .value))' \
+                > ${{ github.workspace }}/cfn-common-parameters.json
+          echo "*********************** ${{ github.workspace }}/cfn-common-parameters.json ****************"
+          cat ${{ github.workspace }}/cfn-common-parameters.json
+
+          ##############################  Combined Parameters   ####################################
+          jq -s '.[0] + .[1]' ${{ github.workspace }}/cfn-parameters.json \
+                              ${{ github.workspace }}/cfn-common-parameters.json > ${{ github.workspace }}/cfn-combined-parameters.json
+
+          echo "********************* ${{ github.workspace }}/cfn-combined-parameters.json **************************************************"
+          cat ${{ github.workspace }}/cfn-combined-parameters.json
+          echo "********************************************************************************************************************"
+
+      ##############################################################################################
+      ########## Prepare the parameter file -- End
+      ##############################################################################################
+
+      ##############################################################################################
+      ########## Configure AWS Credentials
+      ##############################################################################################
+      - name: Configure AWS credentials from AWS account
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      ##############################################################################################
+      ########## Upload CloudFormation Template to S3 repository Bucket
+      ##############################################################################################
+      - name: Upload CFT to S3 Repository Bucket
+        id: s3-upload-cft
+        if: contains(inputs.template-changed, 'true')
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+          KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+        run: |
+          aws s3 sync ${{ github.workspace }}/cft/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/cft/ --sse "aws:kms" \
+          --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.yaml"
+
+          echo "cft-upload-status=CFT_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Upload Lambda to S3 repository Bucket
+      ##############################################################################################
+      - name: Upload Lambda code to S3 Repository Bucket
+        id: upload-lambda-code-to-s3
+        if: contains(inputs.lambda-code-changed, 'true')
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+          KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+        run: |
+          echo "Uploading Lambda code to S3 repository"
+          ## Lambda Code
+          if [ -d ${{ github.workspace }}/lambda-code ];then
+            cd ${{ github.workspace }}/lambda-code
+            for file_name in `ls *`
+            do
+              zip_file="`echo ${file_name}|cut -d'.' -f1`.zip"
+              zip -r ${zip_file} ${file_name}
+              aws s3 cp ${zip_file} s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/lambda-code/ --sse "aws:kms" \
+              --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.zip"
+            done
+          fi
+          echo "lambda-code-upload-status=LAMBDA_CODE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Upload Glue Code to S3 repository Bucket
+      ##############################################################################################
+
+      # - name: Upload Glue code to S3 Repository Bucket
+      #   id: upload-glue-code-to-s3
+      #   if: contains(inputs.glue-code-changed,'true')
+      #   env:
+      #     CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+      #     KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+      #   run: |
+      #     echo "Uploading Glue code to S3 repository"
+      #     ## Glue Code
+      #     if [ -d ${{ github.workspace }}/glue-code ];then
+      #       aws s3 sync ${{ github.workspace }}/glue-code/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/glue-code/ --sse "aws:kms" \
+      #       --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.py"
+      #     fi
+      #     echo "glue-code-upload-status=GLUE_CODE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Upload ASL Json to S3 repository Bucket
+      ##############################################################################################
+      # - name: Upload State Machine ASL file to S3 Repository Bucket
+      #   id: upload-asl-file-to-s3
+      #   if: contains(steps.inputs.asl-file-changed,'true')
+      #   env:
+      #     CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+      #     KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+      #   run: |
+      #     ## State Machine ASL JSON
+      #     if [ -d ${{ github.workspace }}/state-machine ]; then
+      #       aws s3 sync ${{ github.workspace }}/state-machine/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/state-machine/ --sse "aws:kms" \
+      #       --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.asl.json"
+      #     fi
+      #     echo "asl-file-upload-status=ASL_FILE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Upload Lambda Layer Code to S3 repository Bucket
+      ##############################################################################################
+      # - name: Upload Lambda Layer code to S3 Repository Bucket
+      #   id: upload-lambda-layer-code-to-s3
+      #   if: contains(inputs.lambda-layer-code-changed,'true')
+      #   env:
+      #     CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+      #     KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+      #   run: |
+      #     ## Lambda Layer Code
+      #     if [ `ls -d ${{ github.workspace }}/lambda-layer*|wc -l` -gt 0 ];then
+      #       echo "Lambda Layer Code exists"
+      #       for dir in `ls -d ${{ github.workspace }}/lambda-layer*`;do
+      #         cd $dir
+      #         curr_dir=`pwd|awk -F"/" '{print $NF}'`
+      #         zip -r `echo $dir|sed 's/lambda-layer-//g'`.zip `ls -d *`/
+      #         aws s3 cp `echo $dir|sed 's/lambda-layer-//g'`.zip s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/lambda-layer/ --sse "aws:kms" \
+      #         --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.zip"
+      #       done
+      #     fi
+      #     echo "lambda-layer-code-upload-status=LAMBDA_LAYER_CODE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Setup Docker Container -- Start
+      ##############################################################################################
+      # - name: Set up QEMU
+      #   id: setup-qemu
+      #   if: contains(inputs.container-file-changed,'true')
+      #   uses: docker/setup-qemu-action@v3
+
+      # - name: Set up Docker Buildx
+      #   id: setup-docker-buildx
+      #   if: contains(inputs.container-file-changed,'true')
+      #   uses: docker/setup-buildx-action@v3
+
+      # - name: Login to Docker Hub
+      #   id: login-to-github
+      #   if: contains(inputs.container-file-changed,'true')
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.dockerhub-username }}
+      #     password: ${{ secrets.dockerhub-token }}
+
+      # - name: Docker Build and Push
+      #   id: docker-build-push
+      #   if: contains(inputs.container-file-changed,'true')
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: container/
+      #     file: ${{ github.workspace }}/container/Dockerfile
+      #     push: true
+      #     tags: ${{ secrets.dockerhub-username }}/${{ github.event.repository.name }}:${{ github.run_number }}
+
+      # - name: Set Docker Build and Push status to success
+      #   id: docker-build-push-success
+      #   if: success() && contains(inputs.container-file-changed,'true')
+      #   run: echo "docker-build-status=DOCKER_IMAGE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      ##############################################################################################
+      ########## Setup Docker Container -- Start
+      ##############################################################################################
+
+      ##############################################################################################
+      ########## Upload CloudFormation Parameter JSON file to S3 repository Bucket
+      ##############################################################################################
+      - name: Upload the cfn-parameters.json to code repository S3 bucket
+        id: upload-parameter-json-to-s3
+        run: |
+          ## Upload the parameter file with added GitHub context variables and stack name to code repository S3 bucket
+          ##
+          aws s3 cp ${{ github.workspace }}/cfn-combined-parameters.json s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json \
+          --sse "aws:kms" --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR
+
+          ## Set the parameter file S3 object tags to store the stack name and the build string
+          ##
+          aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix ${{ github.event.repository.name }}/${{ github.sha }}/cft/cfn-parameters.json \
+          --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+          --bucket ${{ secrets.code-repository-s3-bucket }} --tagging '{
+                                                                        "TagSet":[
+                                                                            {
+                                                                              "Key":"GitHubWFRunNumber",
+                                                                              "Value":"${{ github.run_number }}"
+                                                                            },
+                                                                            {
+                                                                              "Key":"StackName",
+                                                                              "Value":"${{ steps.get-stack-name-segments.outputs.project-name }}-${{ steps.get-stack-name-segments.outputs.cfn-stack-prefix }}-${{ steps.get-stack-name-segments.outputs.cfn-stack-suffix }}-${{ steps.get-ci-build-string.outputs.ci-build-long }}"
+                                                                            },
+                                                                            {
+                                                                              "Key":"StackId",
+                                                                              "Value": "-"
+                                                                            },
+                                                                            {
+                                                                              "Key":"CiBuild",
+                                                                              "Value":"${{ steps.get-ci-build-string.outputs.ci-build }}"
+                                                                            },
+                                                                            {
+                                                                              "Key":"StackStatus",
+                                                                              "Value":"-"
+                                                                            }
+                                                                        ]
+                                                                      }' --key
+
+      - name: Set output parameters
+        id: set-output-params
+        run: |
+          echo "lambda-functions-changed=${{ inputs.lambda-functions-changed }}" >> $GITHUB_OUTPUT
+
+      - name: Print the CI/CD pipeline output parameters
+        id: print-pipeline-output-params
+        run: |
+          echo "Output :: CF Template Path           : ${{ steps.get-stack-name-segments.outputs.cfn-template-path }}"
+          echo "Output :: CF Template Upload Status  : ${{ steps.s3-upload-cft.outputs.cft-upload-status }}"
+          echo "Output :: Lambda Code Upload Status  : ${{ steps.upload-lambda-code-to-s3.outputs.lambda-code-upload-status }}"
+          echo "Output :: Lambda Functions Changed   : `echo ${{ steps.set-output-params.outputs.lambda-functions-changed }}|base64 -d`"
+          # echo "Output :: Glue Code Upload Status    : ${{ steps.upload-glue-code-to-s3.outputs.glue-code-upload-status }}"
+          # echo "Output :: Lambda Layer Upload Status : ${{ steps.upload-lambda-layer-code-to-s3.outputs.lambda-layer-code-upload-status }}"
+          # echo "Output :: Docker Build Status        : ${{ steps.docker-build-push-success.outputs.docker-build-status }}"
+      

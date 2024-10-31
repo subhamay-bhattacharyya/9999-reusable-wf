@@ -1,0 +1,81 @@
+name: Upload ASL File
+run-name: Upload ASL  
+
+on:
+  workflow_call:
+    inputs:
+      github-sha:
+        description: 'GitHub SHA to be used as a part of S3 Bucket key.'
+        required: true
+        type: string
+    outputs:
+      asl-file-upload-status: 
+        description: 'Specifies the status of Lambda code upload.'
+        value: ${{ jobs.package.outputs.lambda-code-upload-status }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn:
+        required: true
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+jobs:
+  package:
+    name: "Upload ASL Json"
+    outputs:
+      asl-file-upload-status: ${{ steps.upload-asl-file-to-s3.outputs.asl-file-upload-status }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Print the job input parameters
+        id: print-job-input-params
+        run: |
+          echo "Input :: GitHub SHA                : ${{ inputs.github-sha }}"
+
+      ####################################################
+      ########## Checkout Code
+      ####################################################
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      ##############################################################################################
+      ########## Configure AWS Credentials
+      ##############################################################################################
+      - name: Configure AWS credentials from AWS account
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      # ##############################################################################################
+      # ########## Upload Lambda to S3 repository Bucket
+      # ##############################################################################################
+      - name: Upload ASL file to S3 Repository Bucket
+        id: upload-asl-file-to-s3
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+          KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+        run: |
+          echo "Uploading State Machine ASL file to S3 repository"
+          ## Upload ASL File to repository S3 Bucket
+          aws s3 cp ${{ github.workspace }}/${{ inputs.github-sha }}/state-machine/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ inputs.github-sha }}/state-machine/ --sse "aws:kms" \
+          --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.asl.json"
+          echo "asl-file-upload-status=ASL_FILE_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      - name: Print the job output parameters
+        id: print-job-output-params
+        run: |
+          echo "Output :: ASL File Upload Status : ${{ steps.upload-asl-file-to-s3.outputs.asl-file-upload-status }}"

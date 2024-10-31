@@ -1,0 +1,82 @@
+name: Serverless Build
+
+on:
+  workflow_call:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+      node-version:
+        description: 'Specifies the Node.js version.'
+        required: false
+        type: string
+        default: "18.x"
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      aws-sls-artifacts-bucket-name:
+        required: true
+      kms-key-arn: 
+        required: true
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  sls-build:
+    name: "sls-build-${{ inputs.github-env }}"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      - name: Setup Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install Dependencies
+        id: install-dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-sls-oidc
+
+      # - name: Configure and cache Serverless plugin
+      #   id: plugin
+      #   uses: subhamay-bhattacharyya/9996-tf-plugin@main
+      #   with:
+      #     caching: 'true'
+
+      # - name: Output Cache used
+      #   id: cache-used
+      #   run: echo "Cache used? ${{ steps.plugin.outputs.used-cache }}"
+
+      - name: Serverless Validate
+        id: validate
+        uses: serverless/github-action@v3.2
+        with:
+          args: -c "serverless validate"
+          entrypoint: /bin/sh
+
+      - name: Serverless Validate Status
+        id: validate-status
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
+          

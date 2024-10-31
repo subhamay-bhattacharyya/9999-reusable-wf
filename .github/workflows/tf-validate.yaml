@@ -1,0 +1,64 @@
+name: Terraform Validate
+
+on:
+  workflow_call:
+    inputs:
+      # github-env:
+      #   description: 'Specifies the GitHub deployment environment.'
+      #   required: false
+      #   type: string
+      #   default: "devl"
+      terraform-ver:
+        description: 'Specifies version of Terraform to use. e.g: 1.1.0 Default=latest.'
+        required: false
+        type: string
+        default: latest
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
+jobs:
+  validate:
+    name: "Terraform Validate"
+    runs-on: ubuntu-latest
+    # environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
+    steps:
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      - name: Configure and cache Terraform plugin
+        id: plugin
+        uses: subhamay-bhattacharyya/9996-tf-plugin@main
+        with:
+          tf-version: ${{ inputs.terraform-ver }}
+          caching: 'true'
+
+      - name: Output Cache used
+        id: cache-used
+        run: echo "Cache used? ${{ steps.plugin.outputs.used-cache }}"
+
+      - name: Terraform Init
+        id: init
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        id: validate
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform validate -no-color
+
+      - name: Terraform Validate Status
+        id: validate-status
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
+          

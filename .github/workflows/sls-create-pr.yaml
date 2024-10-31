@@ -1,0 +1,91 @@
+name: Create Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      pr-title:
+        description: 'Spefifies the Pull Request title.'
+        required: true
+        type: string
+        default: "Pull Request"
+      pr-approver:
+        description: 'Specifies the GitHub User who can approve a Pull Request.'
+        required: true
+        type: string
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      aws-sls-artifacts-bucket-name:
+        required: true
+      kms-key-arn: 
+        required: true
+      git-token:
+        required: true
+
+permissions:
+  id-token: write # This is required for aws oidc connection
+  pull-requests: write # This is required for gh bot to comment PR
+  contents: write
+
+jobs:
+  pull-request:
+    name: "Create Pull Request"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Configure AWS credentials from AWS account
+        id: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-serverless-oidc
+
+      - name: Generate Pull Request Body
+        id: generate-pr-body
+        run: |  
+          touch pr-body-${{ github.sha }}.md
+          echo "<html>"                 >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "  <body>"               >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <p>"                >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    Pull Request request created to merge <b>${{ github.ref_name }}</b> with <b>main</b> for the repository <b>${{ github.event.repository.name }} to add/remove/update the following resources:</b>" >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    </p>"               >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <font size='1'>"    >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    <table>"            >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "          <th><img alt='Static Badge' src='https://img.shields.io/badge/Action-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Logical_Resource_Id-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Resource_Type-black?style=flat-square&color=ffffff'></th><th><img alt='Static Badge' src='https://img.shields.io/badge/Replacement-black?style=flat-square&color=ffffff'></th>" >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    </table>"           >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "    </font>"            >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "  </body>"              >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "</html>"                >> ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+          echo "************** Pull Request Body ***************"
+          cat ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+
+      - name: Read file contents
+        id: read-file
+        uses: andstor/file-reader-action@v1
+        with:
+          path:  ${{ github.workspace }}/pr-body-${{ github.sha }}.md
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: octokit/request-action@v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
+        with:
+          route: POST /repos/{owner}/{repo}/pulls
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          title: ${{ inputs.pr-title }}
+          head: ${{ github.ref_name }} 
+          base: "main"
+          body: "${{ steps.read-file.outputs.contents }}"
+          
+

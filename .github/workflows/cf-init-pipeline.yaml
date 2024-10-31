@@ -1,0 +1,147 @@
+name: Init
+run-name: Initialize CloudFormation CI/CD Pipeline
+
+on:
+  workflow_call:
+    outputs: 
+      stack-metadata: 
+        description: The Stack Metadata
+        value: ${{ jobs.prepare.outputs.stack-metadata }}
+      files-changed: 
+        description: The files that are changed in this build
+        value: ${{ jobs.prepare.outputs.files-changed }}
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Initialize
+    outputs:
+      stack-metadata: ${{ steps.get-stack-metadata.outputs.stack-metadata }}
+      files-changed: ${{ steps.check-file-changed.outputs.files-changed }}
+    runs-on: ubuntu-latest
+    # [self-hosted, Linux, X64, Subhamay-GH-Runner]
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Start the CloudFormation CI/CD Pipeline
+        id: start-pipelime
+        run: |
+          echo " 🚀 Initializing the CloudFormation CI/CD Pipeline."
+          echo "Current Directory : "
+          pwd
+          echo "GitHub Workspace : ${{ github.workspace }}"
+
+      ####################################################
+      ########## Checkout Code
+      ####################################################
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+        with:
+          path: ${{ github.workspace }}/${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set output variables 
+        id: get-stack-metadata
+        run: |
+          cfn_template_path="`cat ${{ github.workspace }}/${{ github.sha }}/params/cfn-parameters.json|jq -r '."template-path"'`"
+          ci_build="`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15|tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`"
+          ci_build_long="`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 20|tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 20`" 
+          project_name="`cat ${{ github.workspace }}/${{ github.sha }}/params/cfn-parameters.json|jq -r '."project-name"' `"
+          cfn_stack_prefix="`cat ${{ github.workspace }}/${{ github.sha }}/params/cfn-parameters.json|jq -r '."stack-prefix"'`" 
+          cfn_stack_suffix="`cat ${{ github.workspace }}/${{ github.sha }}/params/cfn-parameters.json|jq -r '."stack-suffix"'`" 
+          cfn_stack_name="${project_name}-${cfn_stack_prefix}-${cfn_stack_suffix}-${ci_build_long}"
+
+          stack_metadata_string=$(
+                      jq --null-input \
+                        --arg cfn_template_path "${cfn_template_path}" \
+                        --arg ci_build "${ci_build}" \
+                        --arg ci_build_long "${ci_build_long}" \
+                        --arg project_name "${project_name}" \
+                        --arg cfn_stack_prefix "${cfn_stack_prefix}" \
+                        --arg cfn_stack_suffix "${cfn_stack_suffix}" \
+                        --arg cfn_stack_name "${cfn_stack_name}" \
+                        '{cfn_template_path: $cfn_template_path, ci_build: $ci_build, ci_build_long: $ci_build_long, project_name: $project_name, cfn_stack_prefix: $cfn_stack_prefix, cfn_stack_suffix: $cfn_stack_suffix, cfn_stack_name: $cfn_stack_name }'
+          )
+          echo $stack_metadata_string >> ${{ github.workspace }}/${{ github.sha }}/stack-metedata.json
+          echo "stack-metadata=`echo $stack_metadata_string`" >> $GITHUB_OUTPUT
+
+         
+      ####################################################
+      ########## Get the list of new / changed artifacts -- Start
+      ####################################################
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          path: ${{ github.workspace }}/${{ github.sha }}
+
+      - name: List all changed files
+        id: check-file-changed
+        run: |
+          template_changed='false'
+          lambda_code_changed='false'
+          lambda_functions_changed=''
+          glue_code_changed='false'
+          docker_file_changed='false'
+          asl_file_changed='false'
+          lambda_layer_code_changed='false'
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "$file was changed"
+            file_dir="`echo $file|cut -d'/' -f1`"
+            echo "File Dir : ${file_dir}"
+            if [ "$file_dir" == "cft" ] || [ "$file_dir" == "params" ]; then
+              template_changed='true'
+            fi
+            if [[ "$file_dir" == "lambda-code" ]]; then
+              echo "Lambda code changed."
+              lambda_code_changed='true'
+              echo "================="
+              echo $file|cut -d'/' -f2|cut -d'.' -f1 >> ${{ github.workspace }}/lambda-functions-changed.txt
+            fi
+            if [[ "$file_dir" == "glue-code" ]]; then
+              echo "Glue code changed."
+              glue_code_changed='true'
+            fi
+            if [[ "$file_dir" == "container" ]]; then
+              echo "Dockerfile code changed."
+              docker_file_changed='true'
+            fi
+            if [[ "$file_dir" == "state-machine" ]]; then
+              echo "State machine code changed."
+              asl-file-changed='true'
+            fi
+            if [[ "$file_dir" == *"lambda-layer"* ]]; then
+              echo "Lambda Layer code changed."
+              lambda_layer_code-changed='true'
+            fi
+          done
+          echo "*********** lambda-functions-changed.txt ***********"
+          if [ -f ${{ github.workspace }}/lambda-functions-changed.txt ]; then
+            cat ${{ github.workspace }}/lambda-functions-changed.txt
+            lambda_functions-changed='`cat ${{ github.workspace }}/lambda-functions-changed.txt|base64`'
+          fi
+
+          files_changed_string=$(
+                      jq --null-input \
+                        --arg template_changed "${template_changed}" \
+                        --arg lambda_code_changed "${lambda_code_changed}" \
+                        --arg glue_code_changed "${glue_code_changed}" \
+                        --arg docker_file_changed "${docker_file_changed}" \
+                        --arg asl_file_changed "${asl_file_changed}" \
+                        --arg lambda_layer_code_changed "${lambda_layer_code_changed}" \
+                        '{template_changed: $template_changed, lambda_code_changed: $lambda_code_changed, glue_code_changed: $glue_code_changed, docker_file_changed: $docker_file_changed, asl_file_changed: $asl_file_changed, lambda_layer_code_changed: $lambda_layer_code_changed }'
+          )
+          echo $files_changed_string >> ${{ github.workspace }}/${{ github.sha }}/files-changed.json
+          echo "files-changed=`echo $files_changed_string`" >> $GITHUB_OUTPUT
+
+      - name: Print the job output parameters
+        id: print-job-output-params
+        run: |
+          echo "Output :: Stack Metadata          : ${{ toJSON(steps.get-stack-metadata.outputs.stack-metadata) }}"
+          echo "Output :: Files Changed           : ${{ toJSON(steps.check-file-changed.outputs.files-changed) }}"
+

@@ -1,0 +1,142 @@
+name: Upload CFT
+run-name: Upload CFT
+
+on:
+  workflow_call:
+    inputs:
+      github-sha:
+        description: 'GitHub SHA to be used as a part of S3 Bucket key.'
+        required: true
+        type: string
+    outputs:
+      cft-upload-status: 
+        description: 'Specifies the status of CloudFormation Template upload.'
+        value: ${{ jobs.package.outputs.cft-upload-status }}
+    secrets:
+      aws-region:
+        required: true
+      aws-role-arn:
+        required: true
+      code-repository-s3-bucket:
+        required: true
+      kms-key-arn:
+        required: true
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+jobs:
+  package:
+    name: "Upload CF Template"
+    outputs:
+      cft-upload-status: ${{ steps.s3-upload-cft.outputs.cft-upload-status }}
+    runs-on: ubuntu-latest #[self-hosted, Linux, X64, Subhamay-GH-Runner]
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+
+      - name: Print the job input parameters
+        id: print-job-input-params
+        run: |
+          echo "Input :: GitHub SHA       : ${{ inputs.github-sha }}"
+
+      ##############################################################################################
+      ########## Configure AWS Credentials
+      ##############################################################################################
+      - name: Configure AWS credentials from AWS account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-cloudformation-oidc
+
+      ##############################################################################################
+      ########## Prepare the parameter file -- Start
+      ##############################################################################################
+
+      - name: Prepare the stack parameter file
+        id: prepare-param-file
+        run: |
+          ##############################    Stack Parameters   #####################################
+          cat ${{ github.workspace }}/${{ inputs.github-sha }}/params/cfn-parameters.json| \
+                                      jq -r '.parameters.devl[0]'| \
+                                      jq -r 'to_entries'| \
+                                      jq 'map(.ParameterKey = .key| .ParameterValue = .value | del(.key, .value))' > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
+          echo "*********************** ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json **********************"
+          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
+
+
+          ##############################  Common  Stack Parameters   ###############################
+          jq -n --arg GitHubURL ${{ github.repositoryUrl }} \
+                --arg GitHubRef ${{ github.ref }} \
+                --arg GitHubSHA ${{ inputs.github-sha }} \
+                --arg GitHubWFRunNumber ${{ github.run_number }}  \
+                --arg CodeRepositoryS3Bucket ${{ secrets.code-repository-s3-bucket }} \
+                --arg GitHubRepository '${{ github.event.repository.name }}' \
+                --arg CiBuild  '-${{ inputs.ci-build }}' \
+                --arg ProjectName '${{ inputs.project-name }}' \
+                --arg KmsMasterKeyId ${{ secrets.kms-key-arn }} \
+                '{"GitHubURL":$GitHubURL,"GitHubRef":$GitHubRef, "GitHubSHA":$GitHubSHA, "GitHubWFRunNumber": $GitHubWFRunNumber, "CodeRepositoryS3Bucket": $CodeRepositoryS3Bucket, "GitHubRepository": $GitHubRepository, "CiBuild": $CiBuild, "ProjectName": $ProjectName, "KmsMasterKeyId": $KmsMasterKeyId}' | \
+                jq -r 'to_entries'| \
+                jq 'map(.ParameterKey = .key| .ParameterValue = .value| del(.key, .value))' \
+                > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json
+          echo "*********************** ${{ github.workspace }}/cfn-common-parameters.json ****************"
+          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json
+
+          ##############################  Combined Parameters   ####################################
+          jq -s '.[0] + .[1]' ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json \
+                              ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-common-parameters.json > ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json
+
+          echo "********************* ${{ github.workspace }}/cfn-combined-parameters.json **************************************************"
+          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json
+          echo "*****************************************************************************************************************************"
+          mv ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-combined-parameters.json ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
+          echo "********************* ${{ github.workspace }}/cfn-parameters.json **************************************************"
+          cat ${{ github.workspace }}/${{ inputs.github-sha }}/cfn-parameters.json
+      ##############################################################################################
+      ########## Prepare the parameter file -- End
+      ##############################################################################################
+
+      ##############################################################################################
+      ########## Upload CloudFormation Template to S3 repository Bucket
+      ##############################################################################################
+      - name: Upload CFT to S3 Repository Bucket
+        id: s3-upload-cft
+        env:
+          CODE_REPOSITORY_S3_BUCKET: ${{ secrets.code-repository-s3-bucket }}
+          KMS_KEY_ARN: ${{ secrets.kms-key-arn }}
+        run: |
+          aws s3 sync ${{ github.workspace }}/${{ inputs.github-sha }}/cft/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ inputs.github-sha }}/cft/ --sse "aws:kms" \
+          --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "*.yaml" --include "cfn-parameters.json"
+
+          aws s3 sync ${{ github.workspace }}/${{ inputs.github-sha }}/params/ s3://${{ secrets.code-repository-s3-bucket }}/${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/ --sse "aws:kms" \
+          --sse-kms-key-id ${{ secrets.kms-key-arn }} --storage-class GLACIER_IR --exclude "*" --include "cfn-parameters.json"
+
+          # Add the S3 Object tags
+          stack_name="`cat ${{ github.workspace }}/${{ inputs.github-sha }}/stack-metedata.json|jq -r '."cfn_stack_name"'`"
+          cfn_template_path="`cat ${{ github.workspace }}/${{ inputs.github-sha }}/stack-metedata.json|jq -r '."cfn_template_path"'`"   
+          ci_build="`cat ${{ github.workspace }}/${{ inputs.github-sha }}/stack-metedata.json|jq -r '."ci_build"'`"  
+
+          echo "stack_name = ${stack_name}"
+          echo "cfn_template_path = ${cfn_template_path}"
+          echo "ci_build = ${ci_build}"
+
+          aws s3api list-objects --bucket ${{ secrets.code-repository-s3-bucket }} --prefix ${{ github.event.repository.name }}/${{ inputs.github-sha }}/params/cfn-parameters.json \
+          --query 'Contents[].[Key]' --output text| xargs -n 1 aws s3api put-object-tagging \
+          --bucket ${{ secrets.code-repository-s3-bucket }} --tagging "{\"TagSet\": [{ \"Key\": \"StackName\", \"Value\": \"${stack_name}\"}, \
+                                                                                     { \"Key\": \"StackStatus\", \"Value\": \"-\"}, \
+                                                                                     { \"Key\": \"StackPath\", \"Value\": \"${cfn_template_path}\"}, \
+                                                                                     { \"Key\": \"GitHubWFRunNumber\", \"Value\": \"${{ github.run_number }}\"}, \
+                                                                                     { \"Key\": \"StackId\", \"Value\": \"-\"}, \
+                                                                                     { \"Key\": \"CiBuild\", \"Value\": \"${ci_build}\"} \
+                                                                                    ]}" --key
+          
+          echo "cft-upload-status=CFT_UPLOAD_SUCCESSFUL" >> $GITHUB_OUTPUT
+
+      - name: Print the job output parameters
+        id: print-job-output-params
+        run: |
+          echo "Output :: Template Upload Status    : ${{ steps.s3-upload-cft.outputs.cft-upload-status }}"
+          

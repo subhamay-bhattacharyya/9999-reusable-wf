@@ -1,0 +1,3 @@
+.DS_Store
+sls-cicd-deploy.yaml
+policies/*
