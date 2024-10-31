@@ -50,7 +50,7 @@ jobs:
 
       - name: List Environments
         id: list-environments
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -60,7 +60,7 @@ jobs:
 
       - name: Get Issue
         id: get-branch-issue
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
