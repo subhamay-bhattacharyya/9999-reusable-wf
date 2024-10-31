@@ -39,7 +39,7 @@ jobs:
         working-directory: .
     steps:
       - name: Checkout code
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials from AWS account
         id: configure-aws-credentials
@@ -142,6 +142,7 @@ jobs:
           echo "</html>"                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
           echo "************** Pull Request Body ***************"
           cat ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
+          
       - name: Read file contents
         id: read-file
         uses: andstor/file-reader-action@v1
