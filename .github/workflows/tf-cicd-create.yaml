@@ -1,34 +1,140 @@
-name: Drift Detection
+name: Terraform Plan
 
-'on':
+on:
   workflow_call:
-    secrets:
-      git-token:
+    inputs:
+      github-env:
+        description: 'Specifies the GitHub deployment environment.'
+        required: false
+        type: string
+        default: "devl"
+      terraform-ver:
+        description: 'Specifies version of Terraform to use. e.g: 1.1.0 Default=latest.'
+        required: false
+        type: string
+        default: latest
+      tfvar-file:
+        description: 'Specifies the environment specific tfvar file e.g: devl.terraform.tfvars'
         required: true
+        type: string
+        default: devl.terraform.tfvars
+    outputs:
+      tf-plan:
+        description: The Terraform plan json
+        value: ${{ jobs.validate-plan.outputs.tf-plan }}
+      ci-build:
+        description: "CI Build"
+        value: ${{ jobs.validate-plan.outputs.ci-build }}
+    secrets:
       aws-region:
         required: true
-      prod-aws-role-arn:
+      aws-role-arn:
         required: true
-      prod-kms-key-arn:
+      aws-tf-state-bucket-name:
         required: true
-      prod-aws-tf-state-bucket-name:
+      kms-key-arn: 
         required: true
-
 permissions:
   id-token: write # This is required for aws oidc connection
-  contents: write # This is required for actions/checkout
-  pull-requests: write # This is required for gh bot to comment PR  
-  issues: write
-
+  contents: read # This is required for actions/checkout
+  pull-requests: write # This is required for gh bot to comment PR
+ 
 jobs:
-  detect-drift:
-    name: "Terraform Plan (prod)"
-    uses: ./.github/workflows/tf-plan.yaml
-    with:
-      github-env: prod
-      tfvar-file: prod.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+  plan:
+    name: "Terraform Plan (${{ inputs.github-env }})"
+    outputs:
+      ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
+      tf-plan: ${{ steps.plan.outputs.tf-plan }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+      - name: Git checkout
+        id: git-checkout
+        uses: actions/checkout@main
+
+      - name: Create the CiBuild string
+        if: startsWith(github.ref, 'refs/heads/feature')
+        id: get-ci-build-string
+        run: |
+          echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
+          tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT 
+
+      - name: Add GitHub attributes to terraform.tfvars file
+        id: add-github-attributes
+        run: |
+          cd tf
+          mv ../params/${{ inputs.tfvar-file }} ./terraform.tfvars
+          echo -e '######################################## GitHub Context Variables  #################################'>> terraform.tfvars 
+          echo -e 'github_url           = "${{ github.repositoryUrl }}"'                                                >> terraform.tfvars 
+          echo -e 'github_ref           = "${{ github.ref }}"'                                                          >> terraform.tfvars 
+          echo -e 'github_sha           = "${{ github.sha }}"'                                                          >> terraform.tfvars 
+          echo -e 'github_wf_run_num    = "${{ github.run_number }}"'                                                   >> terraform.tfvars 
+          echo -e 'github_repo          = "${{ github.event.repository.name }}"'                                        >> terraform.tfvars
+          echo "=========================================== terraform.tfvars ==========================================="
+          cat terraform.tfvars 
+
+      - name: Add CiBuild
+        if: startsWith(github.ref, 'refs/heads/feature')
+        id: add-ci-build
+        run: |
+          echo -e 'ci_build             = "-${{ steps.get-ci-build-string.outputs.ci-build }}"'                         >> tf/terraform.tfvars
+          echo "=========================================== terraform.tfvars ==========================================="
+          cat tf/terraform.tfvars 
+
+      - name: Configure AWS credentials from AWS account
+        id: aws-config
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.aws-role-arn }}
+          aws-region: ${{ secrets.aws-region }}
+          role-session-name: github-aws-terraform-oidc
+
+      - name: Configure and cache Terraform plugin
+        id: plugin
+        uses: subhamay-bhattacharyya/9996-tf-plugin@main
+        with:
+          tf-version: ${{ inputs.terraform-ver }}
+          caching: 'true'
+
+      - name: Output Cache used
+        id: cache-used
+        run: echo "Cache used? ${{ steps.plugin.outputs.used-cache }}"
+
+      - name: Terraform Init
+        id: init
+        env:
+          AWS_BUCKET_NAME: ${{ secrets.aws-tf-state-bucket-name }}
+          AWS_BUCKET_KEY_NAME: ${{ github.event.repository.name }}
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform fmt
+          terraform init -backend-config="bucket=${{ secrets.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ secrets.aws-region }}"
+
+      - name: Terraform fmt
+        id: format
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform fmt -check
+        continue-on-error: true
+
+      - name: Terraform Validate
+        id: validate
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform plan
+
+      - name: Terraform Plan Status
+        id: plan-status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+          
