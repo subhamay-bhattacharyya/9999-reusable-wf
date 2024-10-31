@@ -47,7 +47,6 @@ permissions:
 
 jobs:
   _1-setup:
-    # name: Setup Repository
     uses: ./.github/workflows/setup-repository.yaml
     with:
       deploy-reviewer-test: ${{ inputs.deploy-reviewer-test }}
@@ -56,10 +55,9 @@ jobs:
     secrets:
       git-token: ${{ secrets.git-token }}
   _2-1-1-tf-lint:
-    # name: Feature
     needs: [ _1-setup ]
     if: startsWith(github.ref, 'refs/heads/feature') 
-    uses: ./.github/workflows/tf-validate.yaml
+    uses: ./.github/workflows/tf-lint.yaml
     with:
       # github-env: feature
       # tfvar-file: devl.terraform.tfvars
