@@ -124,25 +124,13 @@ jobs:
       - name: Create Test Environment
         id: create-test-env
         if: ${{ (fromJSON(steps.list-environments.outputs.data).total_count == '') }}
-        uses: octokit/request-action@v2.4.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.git-token }}
-          REQUEST_BODY: |
-            {
-              "reviewers": [
-                {
-                  "type": "User",
-                  "id": ${{ inputs.deploy-reviewer-test }}
-                }
-              ]
-            }
+        uses: octokit/request-action@v2.x
         with:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/test
-          mediaType: |
-            format: raw
-          body: ${{ toJSON(env.REQUEST_BODY) }}
-          
-          # reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
+          reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
+
 
       - name: Create Production Environment
         id: create-prod-env
