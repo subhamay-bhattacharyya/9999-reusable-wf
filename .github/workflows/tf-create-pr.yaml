@@ -150,13 +150,13 @@ jobs:
 
       - name: Read file contents
         id: read-file
-        uses: andstor/file-reader-action@v1
+        uses: andstor/file-reader-action@v1.0.0
         with:
           path:  ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@main
+        uses: octokit/request-action@2.4.0
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
