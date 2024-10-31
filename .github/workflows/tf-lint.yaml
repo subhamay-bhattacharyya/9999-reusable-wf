@@ -25,9 +25,9 @@ jobs:
     steps:
       - name: Git checkout
         id: git-checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
-      - uses: actions/cache@v4.1.12
+      - uses: actions/cache@v3
         id: cache-plugin-dir
         name: Cache plugin dir
         with:
