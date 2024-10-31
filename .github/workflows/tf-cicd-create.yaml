@@ -113,6 +113,7 @@ jobs:
     uses: ./.github/workflows/tf-plan.yaml
     with:
       github-env: feature
+      terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
     secrets:
       aws-region: ${{ secrets.aws-region }}
