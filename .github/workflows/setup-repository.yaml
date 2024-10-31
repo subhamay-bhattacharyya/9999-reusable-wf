@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "GitHub Context:"
           echo "${{ toJson(github) }}"
-          
+
       - name: Get Repository Details
         id: get-repo-details
         run: |
@@ -85,7 +85,7 @@ jobs:
         id: cancel-workflow-run
         if: ${{ (fromJSON(steps.get-branch-issue.outputs.data).title == '') || (fromJSON(steps.get-branch-issue.outputs.data).body == '') || 
                 (fromJSON(steps.get-branch-issue.outputs.data).closed_at != null) }}
-        uses: octokit/request-action@v2.1
+        uses: octokit/request-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -103,7 +103,7 @@ jobs:
 
       - name: Set delete branch on merge
         id: update-repository
-        uses: octokit/request-action@v2.1
+        uses: octokit/request-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
@@ -115,7 +115,7 @@ jobs:
       - name: Create Development Environment
         id: create-devl-env
         if: ${{ fromJSON(steps.list-environments.outputs.data).total_count == '' }}
-        uses: octokit/request-action@v2.1
+        uses: octokit/request-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
