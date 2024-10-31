@@ -150,7 +150,7 @@ jobs:
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@v2.1.0
+        uses: octokit/request-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
