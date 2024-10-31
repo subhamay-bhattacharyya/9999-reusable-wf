@@ -3,11 +3,6 @@ name: Terraform Validate
 on:
   workflow_call:
     inputs:
-      # github-env:
-      #   description: 'Specifies the GitHub deployment environment.'
-      #   required: false
-      #   type: string
-      #   default: "devl"
       terraform-ver:
         description: 'Specifies version of Terraform to use. e.g: 1.1.0 Default=latest.'
         required: false
@@ -23,7 +18,6 @@ jobs:
   validate:
     name: "Terraform Validate"
     runs-on: ubuntu-latest
-    # environment: ${{ inputs.github-env }}
     defaults:
       run:
         shell: bash

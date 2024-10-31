@@ -59,28 +59,13 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/feature') 
     uses: ./.github/workflows/tf-lint.yaml
     with:
-      # github-env: feature
-      # tfvar-file: devl.terraform.tfvars
-      tflint-ver: v0.52.0
-    # secrets:
-    #   aws-region: ${{ secrets.aws-region }}
-    #   aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-    #   kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-    #   aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+      tflint-ver: ${{ vars.TF_LINT_VERSION }}
   _2-1-2-validate:
-    # name: Feature
     needs: [ _1-setup ]
     if: startsWith(github.ref, 'refs/heads/feature') 
     uses: ./.github/workflows/tf-validate.yaml
     with:
-      # github-env: feature
-      # tfvar-file: devl.terraform.tfvars
-      terraform-ver: latest
-    # secrets:
-    #   aws-region: ${{ secrets.aws-region }}
-    #   aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-    #   kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-    #   aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+      terraform-ver: ${{ vars.TERRAFORM_VERSION }}
 
   # _2-2-devl:
   #   # name: Devl
@@ -121,19 +106,19 @@ jobs:
   #     aws-role-arn: ${{ secrets.prod-aws-role-arn }}
   #     kms-key-arn: ${{ secrets.prod-kms-key-arn }}
   #     aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
-  # _3-1-feature:
-  #   # name: Feature
-  #   needs: [ _2-1-feature ]
-  #   if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
-  #   uses: ./.github/workflows/tf-apply.yaml
-  #   with:
-  #     github-env: feature
-  #     tfvar-file: devl.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  _3-1-tf-plan-feature:
+    # name: Feature
+    needs: [ _2-1-1-tf-lint, _2-1-2-validate ]
+    if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
+    uses: ./.github/workflows/tf-plan.yaml
+    with:
+      github-env: feature
+      tfvar-file: devl.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   # _3-2-devl:
   #   # name: Devl
   #   if: github.ref == 'refs/heads/main'

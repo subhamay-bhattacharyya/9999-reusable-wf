@@ -3,25 +3,11 @@ name: Run Terraform Linter
 on:
   workflow_call:
     inputs:
-      # github-env:
-      #   description: 'Specifies the GitHub deployment environment.'
-      #   required: false
-      #   type: string
-      #   default: "devl"
       tflint-ver:
         description: 'Specifies version of TFLint to use. e.g: v0.52.0'
         required: false
         type: string
         default: v0.52.0
-    # secrets:
-    #   aws-region:
-    #     required: true
-    #   aws-role-arn:
-    #     required: true
-    #   aws-tf-state-bucket-name:
-    #     required: true
-    #   kms-key-arn: 
-    #     required: true
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
