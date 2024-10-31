@@ -65,12 +65,12 @@ jobs:
           echo "=========================================== terraform.tfvars ==========================================="
           cat terraform.tfvars 
 
-      # - name: Configure and cache Terraform plugin
-      #   id: plugin
-      #   uses: subhamay-bhattacharyya/9996-tf-plugin@main
-      #   with:
-      #     tf-version: ${{ inputs.terraform-ver }}
-      #     caching: 'true'
+      - name: Configure and cache Terraform plugin
+        id: plugin
+        uses: subhamay-bhattacharyya/9996-tf-plugin@main
+        with:
+          tf-version: ${{ inputs.terraform-ver }}
+          caching: 'true'
 
       - name: Output Cache used
         id: cache-used
@@ -151,7 +151,7 @@ jobs:
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@v3
+        uses: octokit/request-action@2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:

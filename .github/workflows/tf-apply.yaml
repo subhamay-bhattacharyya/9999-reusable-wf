@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Git checkout
         id: git-checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
       - name: Create the CiBuild string
         if: startsWith(github.ref, 'refs/heads/feature')
