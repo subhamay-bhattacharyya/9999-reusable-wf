@@ -159,7 +159,7 @@ jobs:
   #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
   #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
   _5-1-tf-destroy-feature:
-    needs: [ _3-1-tf-apply-feature ]
+    needs: [ _4-1-tf-apply-feature ]
     if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
     uses: ./.github/workflows/tf-destroy.yaml
     with:
