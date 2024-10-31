@@ -158,6 +158,19 @@ jobs:
   #     aws-role-arn: ${{ secrets.test-aws-role-arn }}
   #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
   #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  _5-1-tf-destroy-feature:
+    needs: [ _3-1-tf-apply-feature ]
+    if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
+    uses: ./.github/workflows/tf-destroy.yaml
+    with:
+      # github-env: feature
+      terraform-ver: ${{ vars.TERRAFORM_VERSION }}
+      # tfvar-file: devl.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   # _5-2-prod:
   #   # name: Prod
   #   if: github.ref == 'refs/heads/main'

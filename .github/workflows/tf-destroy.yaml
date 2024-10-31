@@ -3,11 +3,11 @@ name: Terraform Destroy
 on:
   workflow_call:
     inputs:
-      github-env:
-        description: 'Specifies the GitHub deployment environment.'
-        required: false
-        type: string
-        default: "devl"
+      # github-env:
+      #   description: 'Specifies the GitHub deployment environment.'
+      #   required: false
+      #   type: string
+      #   default: "devl"
       terraform-ver:
         description: 'Specifies version of Terraform to use. e.g: 1.1.0 Default=latest.'
         required: false
@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Git checkout
         id: git-checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
       # - name: Add GitHub attributes to terraform.tfvars file
       #   id: add-gihub-attributes
