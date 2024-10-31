@@ -108,10 +108,7 @@ jobs:
           route: PATCH /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}
           mediaType: |
             format: raw
-          body: |
-            {
-              "delete_branch_on_merge": true
-            }
+          delete_branch_on_merge: true
 
       - name: Create Development Environment
         id: create-devl-env
@@ -134,15 +131,7 @@ jobs:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/test
           mediaType: |
             format: raw
-          body: |
-            {
-              "reviewers": [
-                {
-                  "type": "User",
-                  "id": ${{ inputs.deploy-reviewer-test }}
-                }
-              ]
-            }
+          reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
 
       - name: Create Production Environment
         id: create-prod-env
