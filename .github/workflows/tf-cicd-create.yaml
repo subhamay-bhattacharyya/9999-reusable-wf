@@ -66,46 +66,42 @@ jobs:
     uses: ./.github/workflows/tf-validate.yaml
     with:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
-
-  # _2-2-devl:
-  #   # name: Devl
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [ _1-setup ]
-  #   uses: ./.github/workflows/tf-plan-validate.yaml
-  #   with:
-  #     github-env: devl
-  #     tfvar-file: devl.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
-  # _2-3-test:
-  #   # name: Test
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [ _1-setup ]
-  #   uses: ./.github/workflows/tf-plan-validate.yaml
-  #   with:
-  #     github-env: test
-  #     tfvar-file: test.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.test-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
-  # _2-4-prod:
-  #   # name: Prod
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [ _1-setup ]
-  #   uses: ./.github/workflows/tf-plan-validate.yaml
-  #   with:
-  #     github-env: prod
-  #     tfvar-file: prod.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+  _2-2-tf-plan-devl:
+    if: github.ref == 'refs/heads/main'
+    needs: [ _1-setup ]
+    uses: ./.github/workflows/tf-plan.yaml
+    with:
+      github-env: devl
+      tfvar-file: devl.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  _2-3-tf-plan-test:
+    if: github.ref == 'refs/heads/main'
+    needs: [ _1-setup ]
+    uses: ./.github/workflows/tf-plan.yaml
+    with:
+      github-env: test
+      tfvar-file: test.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.test-aws-role-arn }}
+      kms-key-arn: ${{ secrets.test-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  _2-4-tf-plan-prod:
+    if: github.ref == 'refs/heads/main'
+    needs: [ _1-setup ]
+    uses: ./.github/workflows/tf-plan.yaml
+    with:
+      github-env: prod
+      tfvar-file: prod.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
   _3-1-tf-plan-feature:
     needs: [_2-1-1-tf-lint, _2-1-2-validate]
     if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
