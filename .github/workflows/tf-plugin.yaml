@@ -27,14 +27,14 @@ jobs:
     steps:
       - name: Setup Terraform
         id: terraform-setup
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v3.1.2
         with:
-          terraform_version: inputs.tf-version
+          terraform_version: ${{ inputs.tf-version }}
 
       - name: Cache Terraform
         if: inputs.caching == 'true'
         id: cache
-        uses: actions/cache@v3
+        uses: actions/cache@4.1.12
         with:
           path: |
             ~/.terraform.d/plugin-cache
