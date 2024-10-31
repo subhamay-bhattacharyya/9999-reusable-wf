@@ -3,11 +3,11 @@ name: Run Terraform Linter
 on:
   workflow_call:
     inputs:
-      github-env:
-        description: 'Specifies the GitHub deployment environment.'
-        required: false
-        type: string
-        default: "devl"
+      # github-env:
+      #   description: 'Specifies the GitHub deployment environment.'
+      #   required: false
+      #   type: string
+      #   default: "devl"
       tflint-ver:
         description: 'Specifies version of TFLint to use. e.g: v0.52.0'
         required: false

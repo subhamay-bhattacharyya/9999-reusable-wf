@@ -1,140 +1,211 @@
-name: Terraform Plan
+name: CI/CD Pipeline for Terraform
 
 on:
   workflow_call:
     inputs:
-      github-env:
-        description: 'Specifies the GitHub deployment environment.'
-        required: false
-        type: string
-        default: "devl"
-      terraform-ver:
-        description: 'Specifies version of Terraform to use. e.g: 1.1.0 Default=latest.'
-        required: false
-        type: string
-        default: latest
-      tfvar-file:
-        description: 'Specifies the environment specific tfvar file e.g: devl.terraform.tfvars'
+      deploy-reviewer-test:
+        description: 'Specifies the GitHub User Id who can approve test deployment.'
+        required: true
+        type: number
+      deploy-reviewer-prod:
+        description: 'Specifies the GitHub User Id who can approve prod deployment.'
+        required: true
+        type: number
+      pr-approver:
+        description: 'Specifies the GitHub User who can approve a Pull Request.'
         required: true
         type: string
-        default: devl.terraform.tfvars
-    outputs:
-      tf-plan:
-        description: The Terraform plan json
-        value: ${{ jobs.validate-plan.outputs.tf-plan }}
-      ci-build:
-        description: "CI Build"
-        value: ${{ jobs.validate-plan.outputs.ci-build }}
-    secrets:
-      aws-region:
+    secrets: 
+      git-token:
         required: true
-      aws-role-arn:
+      aws-region: 
         required: true
-      aws-tf-state-bucket-name:
+      devl-aws-role-arn: 
         required: true
-      kms-key-arn: 
+      devl-kms-key-arn: 
         required: true
+      devl-aws-tf-state-bucket-name: 
+        required: true
+      test-aws-role-arn: 
+        required: true
+      test-kms-key-arn: 
+        required: true
+      test-aws-tf-state-bucket-name: 
+        required: true
+      prod-aws-role-arn: 
+        required: true
+      prod-kms-key-arn: 
+        required: true
+      prod-aws-tf-state-bucket-name: 
+        required: true
+
 permissions:
-  id-token: write # This is required for aws oidc connection
-  contents: read # This is required for actions/checkout
-  pull-requests: write # This is required for gh bot to comment PR
- 
+  id-token: write       # This is required for aws oidc connection
+  contents: write        # This is required for actions/checkout
+  pull-requests: write  # This is required for gh bot to comment PR  
+  issues: write
+
 jobs:
-  plan:
-    name: "Terraform Plan (${{ inputs.github-env }})"
-    outputs:
-      ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
-      tf-plan: ${{ steps.plan.outputs.tf-plan }}
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.github-env }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: .
-    steps:
-      - name: Git checkout
-        id: git-checkout
-        uses: actions/checkout@main
+  _1-setup:
+    # name: Setup Repository
+    uses: ./.github/workflows/setup-repository.yaml
+    with:
+      deploy-reviewer-test: ${{ inputs.deploy-reviewer-test }}
+      deploy-reviewer-prod: ${{ inputs.deploy-reviewer-prod }}
+      pr-approver: ${{ inputs.pr-approver }}
+    secrets:
+      git-token: ${{ secrets.git-token }}
+  _2-1-1-tf-lint:
+    # name: Feature
+    needs: [ _1-setup ]
+    if: startsWith(github.ref, 'refs/heads/feature') 
+    uses: ./.github/workflows/tf-validate.yaml
+    with:
+      # github-env: feature
+      # tfvar-file: devl.terraform.tfvars
+      tflint-ver: v0.52.0
+    # secrets:
+    #   aws-region: ${{ secrets.aws-region }}
+    #   aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+    #   kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+    #   aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  _2-1-2-validate:
+    # name: Feature
+    needs: [ _1-setup ]
+    if: startsWith(github.ref, 'refs/heads/feature') 
+    uses: ./.github/workflows/tf-validate.yaml
+    with:
+      # github-env: feature
+      # tfvar-file: devl.terraform.tfvars
+      terraform-ver: latest
+    # secrets:
+    #   aws-region: ${{ secrets.aws-region }}
+    #   aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+    #   kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+    #   aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
 
-      - name: Create the CiBuild string
-        if: startsWith(github.ref, 'refs/heads/feature')
-        id: get-ci-build-string
-        run: |
-          echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
-          tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT 
-
-      - name: Add GitHub attributes to terraform.tfvars file
-        id: add-github-attributes
-        run: |
-          cd tf
-          mv ../params/${{ inputs.tfvar-file }} ./terraform.tfvars
-          echo -e '######################################## GitHub Context Variables  #################################'>> terraform.tfvars 
-          echo -e 'github_url           = "${{ github.repositoryUrl }}"'                                                >> terraform.tfvars 
-          echo -e 'github_ref           = "${{ github.ref }}"'                                                          >> terraform.tfvars 
-          echo -e 'github_sha           = "${{ github.sha }}"'                                                          >> terraform.tfvars 
-          echo -e 'github_wf_run_num    = "${{ github.run_number }}"'                                                   >> terraform.tfvars 
-          echo -e 'github_repo          = "${{ github.event.repository.name }}"'                                        >> terraform.tfvars
-          echo "=========================================== terraform.tfvars ==========================================="
-          cat terraform.tfvars 
-
-      - name: Add CiBuild
-        if: startsWith(github.ref, 'refs/heads/feature')
-        id: add-ci-build
-        run: |
-          echo -e 'ci_build             = "-${{ steps.get-ci-build-string.outputs.ci-build }}"'                         >> tf/terraform.tfvars
-          echo "=========================================== terraform.tfvars ==========================================="
-          cat tf/terraform.tfvars 
-
-      - name: Configure AWS credentials from AWS account
-        id: aws-config
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
-          role-session-name: github-aws-terraform-oidc
-
-      - name: Configure and cache Terraform plugin
-        id: plugin
-        uses: subhamay-bhattacharyya/9996-tf-plugin@main
-        with:
-          tf-version: ${{ inputs.terraform-ver }}
-          caching: 'true'
-
-      - name: Output Cache used
-        id: cache-used
-        run: echo "Cache used? ${{ steps.plugin.outputs.used-cache }}"
-
-      - name: Terraform Init
-        id: init
-        env:
-          AWS_BUCKET_NAME: ${{ secrets.aws-tf-state-bucket-name }}
-          AWS_BUCKET_KEY_NAME: ${{ github.event.repository.name }}
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform fmt
-          terraform init -backend-config="bucket=${{ secrets.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ secrets.aws-region }}"
-
-      - name: Terraform fmt
-        id: format
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform fmt -check
-        continue-on-error: true
-
-      - name: Terraform Validate
-        id: validate
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform validate -no-color
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform plan
-
-      - name: Terraform Plan Status
-        id: plan-status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
-          
+  # _2-2-devl:
+  #   # name: Devl
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [ _1-setup ]
+  #   uses: ./.github/workflows/tf-plan-validate.yaml
+  #   with:
+  #     github-env: devl
+  #     tfvar-file: devl.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  # _2-3-test:
+  #   # name: Test
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [ _1-setup ]
+  #   uses: ./.github/workflows/tf-plan-validate.yaml
+  #   with:
+  #     github-env: test
+  #     tfvar-file: test.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.test-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  # _2-4-prod:
+  #   # name: Prod
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [ _1-setup ]
+  #   uses: ./.github/workflows/tf-plan-validate.yaml
+  #   with:
+  #     github-env: prod
+  #     tfvar-file: prod.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+  # _3-1-feature:
+  #   # name: Feature
+  #   needs: [ _2-1-feature ]
+  #   if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
+  #   uses: ./.github/workflows/tf-apply.yaml
+  #   with:
+  #     github-env: feature
+  #     tfvar-file: devl.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  # _3-2-devl:
+  #   # name: Devl
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [ _2-2-devl ]
+  #   uses: ./.github/workflows/tf-apply.yaml
+  #   with:
+  #     github-env: devl
+  #     tfvar-file: devl.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  # _4-2-test:
+  #   # name: Test
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [ _2-3-test,_3-2-devl ]
+  #   uses: ./.github/workflows/tf-apply.yaml
+  #   with:
+  #     github-env: test
+  #     tfvar-file: test.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.test-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  # _5-2-prod:
+  #   # name: Prod
+  #   if: github.ref == 'refs/heads/main'
+  #   needs: [_2-4-prod,_3-2-devl, _4-2-test ]
+  #   uses: ./.github/workflows/tf-apply.yaml
+  #   with:
+  #     github-env: prod
+  #     tfvar-file: prod.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+  # _4-1-feature:
+  #   # name: Feature
+  #   if: startsWith(github.ref, 'refs/heads/feature')
+  #   needs: [ _3-1-feature ]
+  #   uses: ./.github/workflows/tf-destroy.yaml
+  #   with:
+  #     github-env: feature
+  #     tfvar-file: devl.terraform.tfvars
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  # _5-1-create-release:
+  #   # name: Release
+  #   needs: [ _4-1-feature ]
+  #   permissions:
+  #     contents: write
+  #     pull-requests: write
+  #     id-token: write
+  #   uses: ./.github/workflows/release.yaml
+  # _6-1-create-pr:
+  #   # name: Create Pull Request
+  #   needs: [_5-1-create-release]
+  #   uses: ./.github/workflows/tf-create-pr.yaml
+  #   with:
+  #     pr-title: "Pull Request to merge ${{ github.ref_name }} with main"
+  #     pr-approver: ${{ inputs.pr-approver }}
+  #   secrets:
+  #     aws-region: ${{ secrets.aws-region }}
+  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  #     git-token: ${{ secrets.git-token }}
