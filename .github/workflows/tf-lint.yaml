@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '20'
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v3.0.11
         id: cache-plugin-dir
         name: Cache plugin dir
         with:
