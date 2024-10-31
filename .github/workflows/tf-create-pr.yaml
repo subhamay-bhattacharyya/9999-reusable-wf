@@ -168,5 +168,7 @@ jobs:
           head: ${{ github.ref_name }} 
           base: "main"
           body: "${{ steps.read-file.outputs.contents }}"
+          mediaType: | # The | is significant!
+            format: raw
           
 
