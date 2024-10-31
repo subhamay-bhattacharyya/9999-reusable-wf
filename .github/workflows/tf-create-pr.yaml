@@ -156,27 +156,16 @@ jobs:
 
       - name: Create Pull Request
         id: create-pr
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: |
-            POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls
-            {
-              "title": "${{ inputs.pr-title }}",
-              "head": "${{ github.ref_name }}",
-              "base": "main",
-              "body": "${{ steps.read-file.outputs.contents }}"
-            }
-          # # route: POST /repos/{owner}/{repo}/pulls
-          # route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls
-          # # owner: ${{ github.repository_owner }}
-          # # repo: ${{ github.event.repository.name }}
-          # title: ${{ inputs.pr-title }}
-          # head: ${{ github.ref_name }} 
-          # base: "main"
-          # body: "${{ steps.read-file.outputs.contents }}"
-          # mediaType: | # The | is significant!
-          #   format: raw
+          route: POST /repos/{owner}/{repo}/pulls
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          title: ${{ inputs.pr-title }}
+          head: ${{ github.ref_name }} 
+          base: "main"
+          body: "${{ steps.read-file.outputs.contents }}"
           
 
