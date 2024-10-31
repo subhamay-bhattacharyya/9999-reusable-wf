@@ -28,7 +28,7 @@ jobs:
         working-directory: .
     steps:
       - name: Configure AWS credentials from AWS account
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
           role-to-assume: ${{ secrets.aws-role-arn }}
           aws-region: ${{ secrets.aws-region }}

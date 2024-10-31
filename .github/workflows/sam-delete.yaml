@@ -73,7 +73,7 @@ jobs:
 
       - name: Configure AWS credentials from AWS account
         id: aws-config
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
           aws-region: ${{ secrets.aws-region }}
           role-to-assume: ${{ secrets.aws-sam-pipeline-role-arn }}

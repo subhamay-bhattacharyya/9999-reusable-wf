@@ -75,7 +75,7 @@ jobs:
           echo "Input :: CFT Upload Status             : ${{ inputs.cft-upload-status }}"
 
       - name: Configure AWS credentials from AWS account
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
           role-to-assume: ${{ secrets.aws-role-arn }}
           aws-region: ${{ secrets.aws-region }}
