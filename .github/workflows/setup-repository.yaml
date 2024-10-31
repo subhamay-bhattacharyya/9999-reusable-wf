@@ -131,7 +131,16 @@ jobs:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/test
           mediaType: |
             format: raw
-          reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
+          body: |
+            {
+              "reviewers": [
+                {
+                  "type": "User",
+                  "id": ${{ inputs.deploy-reviewer-test }}
+                }
+              ]
+            }
+          # reviewers: '[{"type":"User","id": ${{ inputs.deploy-reviewer-test}} }]'
 
       - name: Create Production Environment
         id: create-prod-env
