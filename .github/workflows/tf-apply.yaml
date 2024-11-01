@@ -138,4 +138,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
           route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/comments
-          body: "${{ steps.read-file.outputs.contents }}"
+          body: |
+            "${{ steps. -file.outputs.contents }}"
