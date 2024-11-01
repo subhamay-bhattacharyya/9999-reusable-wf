@@ -34,7 +34,7 @@ permissions:
  
 jobs:
   apply:
-    name: "Terraform Apply (${{ inputs.github-env }})"
+    name: "TF Apply (${{ inputs.github-env }})"
     runs-on: ubuntu-latest
     # environment: ${{ inputs.github-env }}
     defaults:

@@ -29,7 +29,7 @@ permissions:
  
 jobs:
   destroy:
-    name: "Terraform Destroy (${{ inputs.github-env }})"
+    name: "TF Destroy (${{ inputs.github-env }})"
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
     defaults:

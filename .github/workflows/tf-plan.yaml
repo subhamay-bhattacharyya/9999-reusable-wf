@@ -41,7 +41,7 @@ permissions:
  
 jobs:
   plan:
-    name: "Terraform Plan (${{ inputs.github-env }})"
+    name: "TF Plan (${{ inputs.github-env }})"
     outputs:
       ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
       tf-plan: ${{ steps.plan.outputs.tf-plan }}
