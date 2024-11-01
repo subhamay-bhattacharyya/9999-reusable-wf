@@ -36,13 +36,13 @@ jobs:
 
       - name: List the files in the workspace
         run: |
-          cd ${{ github.workspace }}/tf
+          cd ${{ github.workspace }}
           ls -alrt 
 
       # Generate Infracost JSON file as the baseline.
       - name: Generate Infracost cost estimate baseline
         run: |
-          infracost breakdown --config-file=${{ github.workspace }}/tf/infracost.yaml \
+          infracost breakdown --config-file=${{ github.workspace }}/infracost.yaml \
                               --format=json \
                               --out-file=/tmp/infracost-base.json
 
@@ -53,7 +53,7 @@ jobs:
       # Generate an Infracost diff and save it to a JSON file.
       - name: Generate Infracost diff
         run: |
-          infracost diff --config-file=${{ github.workspace }}/tf/infracost.yaml \
+          infracost diff --config-file=${{ github.workspace }}/infracost.yaml \
                           --format=json \
                           --compare-to=/tmp/infracost-base.json \
                           --out-file=/tmp/infracost.json
