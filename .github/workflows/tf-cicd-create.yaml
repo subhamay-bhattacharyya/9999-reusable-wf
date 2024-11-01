@@ -115,19 +115,6 @@ jobs:
       aws-role-arn: ${{ secrets.devl-aws-role-arn }}
       kms-key-arn: ${{ secrets.devl-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
-  # _3-2-devl:
-  #   # name: Devl
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [ _2-2-devl ]
-  #   uses: ./.github/workflows/tf-apply.yaml
-  #   with:
-  #     github-env: devl
-  #     tfvar-file: devl.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   _4-1-tf-apply-feature:
     needs: [_3-1-tf-plan-feature]
     if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
@@ -154,19 +141,19 @@ jobs:
       aws-role-arn: ${{ secrets.devl-aws-role-arn }}
       kms-key-arn: ${{ secrets.devl-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
-  # _4-2-test:
-  #   # name: Test
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [ _2-3-test,_3-2-devl ]
-  #   uses: ./.github/workflows/tf-apply.yaml
-  #   with:
-  #     github-env: test
-  #     tfvar-file: test.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.test-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.test-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+  _4-3-tf-apply-prod:
+    needs: [_2-2-tf-plan-devl, _2-3-tf-plan-test, _2-4-tf-plan-prod]
+    if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+    uses: ./.github/workflows/tf-apply.yaml
+    with:
+      github-env: prod
+      terraform-ver: ${{ vars.TERRAFORM_VERSION }}
+      tfvar-file: prod.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   _5-1-tf-destroy-feature:
     needs: [_4-1-tf-apply-feature]
     if: ${{ startsWith(github.ref, 'refs/heads/feature') }}
@@ -181,7 +168,7 @@ jobs:
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   _5-2-tf-apply-test:
     if: github.ref == 'refs/heads/main'
-    needs: [_4-2-tf-apply-devl]
+    needs: [_4-2-tf-apply-devl, _2-3-tf-plan-test]
     uses: ./.github/workflows/tf-apply.yaml
     with:
       github-env: test
@@ -191,19 +178,6 @@ jobs:
       aws-role-arn: ${{ secrets.prod-aws-role-arn }}
       kms-key-arn: ${{ secrets.prod-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
-  # _4-1-feature:
-  #   # name: Feature
-  #   if: startsWith(github.ref, 'refs/heads/feature')
-  #   needs: [ _3-1-feature ]
-  #   uses: ./.github/workflows/tf-destroy.yaml
-  #   with:
-  #     github-env: feature
-  #     tfvar-file: devl.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   _6-1-create-release:
     needs: [_5-1-tf-destroy-feature]
     permissions:
