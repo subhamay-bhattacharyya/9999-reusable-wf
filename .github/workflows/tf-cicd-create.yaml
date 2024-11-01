@@ -141,6 +141,19 @@ jobs:
       aws-role-arn: ${{ secrets.devl-aws-role-arn }}
       kms-key-arn: ${{ secrets.devl-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+  _4-2-tf-apply-devl:
+    needs: [_1-setup]
+    if: ${{ startsWith(github.ref, 'refs/heads/main') }}
+    uses: ./.github/workflows/tf-apply.yaml
+    with:
+      github-env: devl
+      terraform-ver: ${{ vars.TERRAFORM_VERSION }}
+      tfvar-file: devl.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
+      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   # _4-2-test:
   #   # name: Test
   #   if: github.ref == 'refs/heads/main'
