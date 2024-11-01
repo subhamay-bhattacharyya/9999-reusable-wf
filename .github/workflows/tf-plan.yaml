@@ -67,7 +67,7 @@ jobs:
         id: add-github-attributes
         run: |
           cd tf
-          mv ../params/${{ inputs.tfvar-file }} ./terraform.tfvars
+          mv params/${{ inputs.tfvar-file }} terraform.tfvars
           echo -e '######################################## GitHub Context Variables  #################################'>> terraform.tfvars 
           echo -e 'github_url           = "${{ github.repositoryUrl }}"'                                                >> terraform.tfvars 
           echo -e 'github_ref           = "${{ github.ref }}"'                                                          >> terraform.tfvars 

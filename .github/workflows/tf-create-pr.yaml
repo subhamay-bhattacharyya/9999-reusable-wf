@@ -58,7 +58,7 @@ jobs:
         id: add-gihub-attributes
         run: |
           cd tf
-          mv ../params/devl.terraform.tfvars ./terraform.tfvars
+          mv params/devl.terraform.tfvars terraform.tfvars
           echo -e '######################################## GitHub Context Variables  #################################'>> terraform.tfvars 
           echo -e 'environment_name     = "devl"'                                                                       >> terraform.tfvars 
           echo -e 'GitHubURL            = "${{ github.repositoryUrl }}"'                                                >> terraform.tfvars 
