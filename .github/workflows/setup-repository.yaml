@@ -36,11 +36,11 @@ jobs:
     runs-on: ubuntu-latest
     steps: 
 
-      - name: Dump GitHub Context
-        id: dump-github-context
-        run: |
-          echo "GitHub Context:"
-          echo "${{ toJson(github) }}"
+      # - name: Dump GitHub Context
+      #   id: dump-github-context
+      #   run: |
+      #     echo "GitHub Context:"
+      #     echo "${{ toJson(github) }}"
 
       - name: Get Repository Details
         id: get-repo-details
