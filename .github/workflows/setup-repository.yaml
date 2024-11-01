@@ -36,12 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     steps: 
 
-      # - name: Dump GitHub Context
-      #   id: dump-github-context
-      #   run: |
-      #     echo "GitHub Context:"
-      #     echo "${{ toJson(github) }}"
-
       - name: Get Repository Details
         id: get-repo-details
         run: |
@@ -49,9 +43,10 @@ jobs:
           echo "issue-id=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
 
       - name: Set Issue ID as Environment Variable
+        id: set-issue-id
         run: |
           echo "ISSUE_ID=${{ steps.get-repo-details.outputs.issue-id }}" >> $GITHUB_ENV
-          
+
       - name: List Environments
         id: list-environments
         uses: octokit/request-action@v2.4.0
@@ -157,9 +152,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/branches/main/protection
-          # owner: ${{ github.repository_owner }}
-          # repo: ${{ github.event.repository.name }}
-          # branch: main
           enforce_admins: true
           required_pull_request_reviews: |
                     {
