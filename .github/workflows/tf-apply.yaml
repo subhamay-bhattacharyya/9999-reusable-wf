@@ -122,9 +122,15 @@ jobs:
 
           terraform output -json > ${{ github.workspace }}/tf/terraform-output.json
 
-      - name: Use Issue Number from Previous Job
-        run: |
-          echo "The issue number is ${{ inputs.issue-number }}"
+      # - name: Use Issue Number from Previous Job
+      #   run: |
+      #     echo "The issue number is ${{ inputs.issue-number }}"
+
+      - name: Read Terraform output json file contents
+        id: read-file
+        uses: andstor/file-reader-action@v1.0.0
+        with:
+          path: ${{ github.workspace }}/tf/terraform-output.json
 
       - name: Post Comment on GitHub Issue
         id: post-comment
@@ -136,5 +142,5 @@ jobs:
           body: |
             The Terraform apply output is as follows:
             \`\`\`json
-            `cat ${{ github.workspace }}/tf/terraform-output.json`
+            ${{ steps.read-file.outputs.content }}
             \`\`\`
