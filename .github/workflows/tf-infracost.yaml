@@ -3,7 +3,7 @@ name: "Run Infracost"
 
 on:
   workflow_call:
-    inputs:
+    secrets:
       infracost-api-key:
         description: 'Infracost API Key.'
         required: true
@@ -28,7 +28,7 @@ jobs:
       - name: Setup Infracost
         uses: infracost/actions/setup@v3
         with:
-          api-key: ${{ inputs.infracost-api-key }}
+          api-key: ${{ secrets.infracost-api-key }}
 
       # Checkout the base branch of the pull request (e.g. main/master).
       - name: Checkout base branch
