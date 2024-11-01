@@ -153,6 +153,7 @@ jobs:
   _3-4-tf-apply-prod:
     needs:
       - _2-4-tf-plan-prod
+      - _3-3-tf-apply-test
     if: ${{ startsWith(github.ref, 'refs/heads/main') }}
     uses: ./.github/workflows/tf-apply.yaml
     with:
