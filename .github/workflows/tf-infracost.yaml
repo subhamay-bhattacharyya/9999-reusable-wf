@@ -5,9 +5,7 @@ on:
   workflow_call:
     secrets:
       infracost-api-key:
-        description: 'Infracost API Key.'
         required: true
-        type: string
 
 permissions:
   id-token: write # This is required for aws oidc connection
