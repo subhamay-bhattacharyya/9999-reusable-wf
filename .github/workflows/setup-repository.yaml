@@ -17,9 +17,9 @@ on:
         required: true
         type: string
     outputs:
-      issue-id:
+      issue-number:
         description: "Issue id associated with the feature branch"
-        value: ${{ jobs.setup-repo.outputs.issue-id }}
+        value: ${{ jobs.setup-repo.outputs.issue-number }}
     secrets: 
       git-token:
         required: true
@@ -32,7 +32,7 @@ jobs:
   setup-repo:
     name: Setup Repository
     outputs:
-      issue-id: ${{ steps.get-repo-details.outputs.issue-id }}
+      issue-number: ${{ steps.get-repo-details.outputs.issue-number }}
     runs-on: ubuntu-latest
     steps: 
 
@@ -40,12 +40,12 @@ jobs:
         id: get-repo-details
         run: |
           echo "commit message   = ${{ github.event.commits[0].message }}"
-          echo "issue-id=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
+          echo "issue-number=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
 
       - name: Set Issue ID as Environment Variable
-        id: set-issue-id
+        id: set-issue-number
         run: |
-          echo "ISSUE_ID=${{ steps.get-repo-details.outputs.issue-id }}" >> $GITHUB_ENV
+          echo "ISSUE_ID=${{ steps.get-repo-details.outputs.issue-number }}" >> $GITHUB_ENV
 
       - name: List Environments
         id: list-environments
@@ -63,7 +63,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: GET /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/${{ steps.get-repo-details.outputs.issue-id }}
+          route: GET /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/${{ steps.get-repo-details.outputs.issue-number }}
           mediaType: |
             format: raw
           
@@ -72,7 +72,7 @@ jobs:
         if: always()
         run: |
           echo "GitHub event                 : ${{ github.event_name }}"
-          echo "Issue Id                     : ${{ steps.get-repo-details.outputs.issue-id }}"
+          echo "Issue Number                 : ${{ steps.get-repo-details.outputs.issue-number }}"
           echo "Issue Title                  : ${{ fromJSON(steps.get-branch-issue.outputs.data).title }}"
           echo "Issue Body                   : ${{ fromJSON(steps.get-branch-issue.outputs.data).body }}"
           echo "Issue Closed At              : ${{ fromJSON(steps.get-branch-issue.outputs.data).closed_at }}"
