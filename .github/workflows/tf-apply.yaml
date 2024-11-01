@@ -132,7 +132,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/${{ secrets.issue-number }}/comments
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/comments
           body: |
             The Terraform apply output is as follows:
             \`\`\`json
