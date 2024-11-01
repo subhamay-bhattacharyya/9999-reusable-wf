@@ -3,16 +3,17 @@ name: "Run Infracost"
 
 on:
   workflow_call:
+    inputs:
+      infracost-api-key:
+        description: 'Infracost API Key.'
+        required: true
+        type: string
 
-secrets:
-  infracost-api-key:
-    required: true
-
-# permissions:
-#   id-token: write # This is required for aws oidc connection
-#   contents: write # This is required for actions/checkout
-#   issues: write
-#   pull-requests: write # This is required for gh bot to comment PR  
+permissions:
+  id-token: write # This is required for aws oidc connection
+  contents: write # This is required for actions/checkout
+  issues: write
+  pull-requests: write # This is required for gh bot to comment PR  
 
 jobs:
   infracost-pull-request-checks:
