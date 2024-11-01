@@ -147,9 +147,9 @@ jobs:
       tfvar-file: test.terraform.tfvars
     secrets:
       aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+      aws-role-arn: ${{ secrets.test-aws-role-arn }}
+      kms-key-arn: ${{ secrets.test-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
   _3-4-tf-apply-prod:
     needs:
       - _2-4-tf-plan-prod
@@ -162,9 +162,9 @@ jobs:
       tfvar-file: prod.terraform.tfvars
     secrets:
       aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
   _4-1-tf-apply-feature:
     needs:
       - _3-1-tf-plan-feature
