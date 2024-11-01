@@ -119,8 +119,7 @@ jobs:
         run: |
           cd ${{ github.workspace }}/tf
           terraform apply -auto-approve
-
-          terraform output -json > ${{ github.workspace }}/tf/terraform-output.json
+          terraform output -json|jq ".resources.value" > ${{ github.workspace }}/tf/terraform-output.json
 
       # - name: Use Issue Number from Previous Job
       #   run: |
@@ -139,8 +138,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
           route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/comments
-          body: |
-            The Terraform apply output is as follows:
-            \`\`\`json
-            ${{ steps.read-file.outputs.content }}
-            \`\`\`
+          body: "${{ steps.read-file.outputs.contents }}"
