@@ -114,3 +114,22 @@ jobs:
         run: |
           cd ${{ github.workspace }}/tf
           terraform apply -auto-approve
+
+          terraform output -json > ${{ github.workspace }}/tf/terraform-output.json
+
+      - name: Use Issue ID as Environment Variable
+        run: |
+          echo "The issue ID from environment variable is $ISSUE_ID"
+
+      - name: Post Comment on GitHub Issue
+        id: post-comment
+        uses: octokit/request-action@v2.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
+        with:
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/$ISSUE_ID/${{ secrets.issue-number }}/comments
+          body: |
+            The Terraform apply output is as follows:
+            \`\`\`json
+            ${{ steps.read-output.outputs.contents }}
+            \`\`\`

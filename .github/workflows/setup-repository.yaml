@@ -48,6 +48,10 @@ jobs:
           echo "commit message   = ${{ github.event.commits[0].message }}"
           echo "issue-id=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
 
+      - name: Set Issue ID as Environment Variable
+        run: |
+          echo "ISSUE_ID=${{ steps.get-repo-details.outputs.issue-id }}" >> $GITHUB_ENV
+          
       - name: List Environments
         id: list-environments
         uses: octokit/request-action@v2.4.0
