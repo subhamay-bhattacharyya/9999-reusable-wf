@@ -122,9 +122,9 @@ jobs:
 
           terraform output -json > ${{ github.workspace }}/tf/terraform-output.json
 
-      - name: Use Issue ID from Previous Job
+      - name: Use Issue Number from Previous Job
         run: |
-          echo "The issue ID from the previous job is ${{ inputs.issue-number }}"
+          echo "The issue number is ${{ inputs.issue-number }}"
 
       - name: Post Comment on GitHub Issue
         id: post-comment
