@@ -139,4 +139,4 @@ jobs:
         with:
           route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/comments
           body: |
-            "${{ steps. -file.outputs.contents }}"
+            "${{ steps.read-file.outputs.contents }}"
