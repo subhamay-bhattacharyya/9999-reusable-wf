@@ -27,6 +27,8 @@ on:
         required: true
       kms-key-arn: 
         required: true
+      git-token:
+        required: true
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
