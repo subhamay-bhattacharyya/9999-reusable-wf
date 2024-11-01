@@ -31,10 +31,10 @@ jobs:
       # Checkout the base branch of the pull request (e.g. main/master).
       - name: Checkout base branch
         uses: actions/checkout@v4
-        with:
-          ref: '${{ github.event.pull_request.base.ref }}'
+        # with:
+        #   ref: '${{ github.event.pull_request.base.ref }}'
 
-      - name: Checkout base branch
+      - name: List the files in the workspace
         run: |
           cd ${{ github.workspace }}/tf
           ls -alrt 
