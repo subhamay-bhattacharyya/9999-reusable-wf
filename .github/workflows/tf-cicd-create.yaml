@@ -142,7 +142,7 @@ jobs:
       kms-key-arn: ${{ secrets.devl-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
   _4-2-tf-apply-devl:
-    needs: [_1-setup]
+    needs: [_2-2-tf-plan-devl]
     if: ${{ startsWith(github.ref, 'refs/heads/main') }}
     uses: ./.github/workflows/tf-apply.yaml
     with:
@@ -179,19 +179,18 @@ jobs:
       aws-role-arn: ${{ secrets.devl-aws-role-arn }}
       kms-key-arn: ${{ secrets.devl-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
-  # _5-2-prod:
-  #   # name: Prod
-  #   if: github.ref == 'refs/heads/main'
-  #   needs: [_2-4-prod,_3-2-devl, _4-2-test ]
-  #   uses: ./.github/workflows/tf-apply.yaml
-  #   with:
-  #     github-env: prod
-  #     tfvar-file: prod.terraform.tfvars
-  #   secrets:
-  #     aws-region: ${{ secrets.aws-region }}
-  #     aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-  #     kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-  #     aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+  _5-2-tf-apply-test:
+    if: github.ref == 'refs/heads/main'
+    needs: [_4-2-tf-apply-devl]
+    uses: ./.github/workflows/tf-apply.yaml
+    with:
+      github-env: test
+      tfvar-file: test.terraform.tfvars
+    secrets:
+      aws-region: ${{ secrets.aws-region }}
+      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
+      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
   # _4-1-feature:
   #   # name: Feature
   #   if: startsWith(github.ref, 'refs/heads/feature')
