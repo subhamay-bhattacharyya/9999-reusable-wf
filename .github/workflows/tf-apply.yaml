@@ -122,12 +122,36 @@ jobs:
           terraform fmt
           terraform init -backend-config="bucket=${{ inputs.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ inputs.aws-region }}"
 
-      - name: Terraform Apply
+      - name: Terraform Apply and generate output
         id: apply
         run: |
           cd ${{ github.workspace }}/tf
           terraform apply -auto-approve
           terraform output -json|jq ".resources.value" > ${{ github.workspace }}/tf/terraform-output.json
+
+
+          json_file="${{ github.workspace }}/tf/terraform-output.json"
+
+          # Output HTML file
+          tf_output_file="${{ github.workspace }}/tf-output-${{ github.sha }}.md"
+
+          # Start the HTML file
+          echo "<html>"                                                                             >  $tf_output_file
+          echo "  <body>"                                                                           >> $tf_output_file
+          echo "    <p>"                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
+          echo "    Resources created for <b>${{ inputs.github-env }}:</b>"                         >> $tf_output_file
+          echo "    </p>"                                                                           >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
+          echo "    <font size='1'>"                                                                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md          
+          echo "    <table border='1'>"                                                             >> $tf_output_file
+
+          # Parse the JSON file and generate the HTML table
+          jq -r 'to_entries | .[] | "<tr><td>\(.key)</td><td>\(.value)</td></tr>"' $json_file       >> $tf_output_file
+
+          # End the HTML file
+          echo "    </table>"                                                                       >> $tf_output_file
+          echo "    </font>"                                                                        >> $tf_output_file
+          echo "  </body>"                                                                          >> $tf_output_file
+          echo "</html>"                                                                            >> $tf_output_file
 
       # - name: Use Issue Number from Previous Job
       #   run: |
@@ -135,7 +159,7 @@ jobs:
 
       - name: Read Terraform Output
         id: read-output
-        run: cat ${{ github.workspace }}/tf/terraform-output.json
+        run: ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
 
       # - name: Post Comment on GitHub Issue
       #   id: post-comment
@@ -153,5 +177,5 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: 1
-          body-path: '${{ github.workspace }}/tf/terraform-output.json'
+          body-path: '${{ github.workspace }}/tf-plan-${{ github.sha }}.md'
           reactions: '+1'
