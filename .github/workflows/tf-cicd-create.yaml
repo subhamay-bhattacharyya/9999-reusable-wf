@@ -48,6 +48,7 @@ jobs:
     uses: ./.github/workflows/tf-validate.yaml
     with:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
+      issue-number: ${{ needs._1-setup.outputs.issue-number }}
   _2-2-tf-plan-devl:
     if: github.ref == 'refs/heads/main'
     needs:
@@ -56,6 +57,7 @@ jobs:
     with:
       github-env: devl
       tfvar-file: devl.terraform.tfvars
+      issue-number: ${{ needs._1-setup.outputs.issue-number }}
       aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
@@ -94,6 +96,7 @@ jobs:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
+      issue-number: ${{ needs._2-1-2-validate.outputs.issue-number }}
       aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}

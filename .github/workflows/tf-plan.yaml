@@ -18,6 +18,10 @@ on:
         required: true
         type: string
         default: devl.terraform.tfvars
+      issue-number:
+        description: 'Specifies the GitHub Issue Number.'
+        required: true
+        type: string
       aws-region:
         description: 'Specifies the AWS Region.'
         required: true
@@ -35,12 +39,15 @@ on:
         required: true
         type: string
     outputs:
-      tf-plan:
-        description: The Terraform plan json
-        value: ${{ jobs.validate-plan.outputs.tf-plan }}
-      ci-build:
-        description: "CI Build"
-        value: ${{ jobs.validate-plan.outputs.ci-build }}
+      # tf-plan:
+      #   description: The Terraform plan json
+      #   value: ${{ jobs.plan.outputs.tf-plan }}
+      # ci-build:
+      #   description: "CI Build"
+      #   value: ${{ jobs.plan.outputs.ci-build }}
+      issue-number:
+        description: "Issue id associated with the feature branch"
+        value: ${{ jobs.plan.outputs.issue-number }}
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -52,6 +59,7 @@ jobs:
     outputs:
       ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
       tf-plan: ${{ steps.plan.outputs.tf-plan }}
+      issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
     defaults:
@@ -59,6 +67,12 @@ jobs:
         shell: bash
         working-directory: .
     steps:
+      - name: Print and issue number to next step
+        id: pass-issue-number
+        run:|
+          echo "issue-number: ${{ inputs.issue-number }}"
+          echo "issue-number=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
+
       - name: Git checkout
         id: git-checkout
         uses: actions/checkout@v4
