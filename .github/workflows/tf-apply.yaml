@@ -63,6 +63,7 @@ jobs:
         if: startsWith(github.ref, 'refs/heads/feature')
         id: get-ci-build-string
         run: |
+          echo "issue-number=${{ inputs.issue-number }}" 
           echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
           tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT 
           
@@ -157,6 +158,6 @@ jobs:
 
       - name: Add comment
         run: |
-          gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
+          gh issue comment ${{ steps.get-ci-build-string.outputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
         env:
           GH_TOKEN: ${{ github.token }}
