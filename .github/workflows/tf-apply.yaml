@@ -140,7 +140,7 @@ jobs:
           echo "  <body>"                                                                           >> $tf_output_file
           echo "    <p>"                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
           echo "    Resources created for <b>${{ inputs.github-env }}:</b>"                         >> $tf_output_file
-          echo "    </p>"                                                                           >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
+          echo "    </p>"                                                                           >> $tf_output_file
           echo "    <font size='1'>"                                                                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md          
           echo "    <table border='1'>"                                                             >> $tf_output_file
 
@@ -153,7 +153,8 @@ jobs:
           echo "  </body>"                                                                          >> $tf_output_file
           echo "</html>"                                                                            >> $tf_output_file
 
-          chmod +w $tf_output_file
+          chmod +wr $tf_output_file
+          echo ${{ github.workspace }}/tf-output-${{ github.sha }}.md
           echo "************** Issue Comment ***************"
           cat $tf_output_file
 
@@ -164,7 +165,7 @@ jobs:
 
       - name: Read Terraform Output
         id: read-output
-        run: ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
+        run: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
 
       # - name: Post Comment on GitHub Issue
       #   id: post-comment
