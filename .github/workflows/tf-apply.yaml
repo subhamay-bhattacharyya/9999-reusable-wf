@@ -45,7 +45,7 @@ permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
   pull-requests: write # This is required for gh bot to comment PR
- 
+  repository-projects: read 
 jobs:
   apply:
     name: "TF Apply (${{ inputs.github-env }})"
@@ -179,7 +179,7 @@ jobs:
 
       - name: Create comment with the Terraform output
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         run: |
           echo "************** Issue Comment ***************"
           cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
