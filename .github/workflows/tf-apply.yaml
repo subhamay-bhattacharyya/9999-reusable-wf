@@ -179,7 +179,7 @@ jobs:
 
       - name: Create comment with the Terraform output
         env:
-          GITHUB_TOKEN: ${{ secrets.git-token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "************** Issue Comment ***************"
           cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
