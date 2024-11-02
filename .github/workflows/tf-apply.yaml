@@ -133,11 +133,9 @@ jobs:
       #   run: |
       #     echo "The issue number is ${{ inputs.issue-number }}"
 
-      - name: Read Terraform output json file contents
-        id: read-file
-        uses: andstor/file-reader-action@v1.0.0
-        with:
-          path: ${{ github.workspace }}/tf/terraform-output.json
+      - name: Read Terraform Output
+        id: read-output
+        run: cat ${{ github.workspace }}/tf/terraform-output.json
 
       - name: Post Comment on GitHub Issue
         id: post-comment
@@ -145,6 +143,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.git-token }}
         with:
-          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/1/comments
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
           body: |
-            ${{ steps.read-file.outputs.contents }}
+            The Terraform apply output is as follows:
+            \`\`\`json
+            ${{ steps.read-output.outputs.contents }}
+            \`\`\`
