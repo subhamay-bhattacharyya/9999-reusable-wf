@@ -137,15 +137,22 @@ jobs:
         id: read-output
         run: cat ${{ github.workspace }}/tf/terraform-output.json
 
-      - name: Post Comment on GitHub Issue
-        id: post-comment
-        uses: octokit/request-action@v2.1.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.git-token }}
+      # - name: Post Comment on GitHub Issue
+      #   id: post-comment
+      #   uses: octokit/request-action@v2.1.1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.git-token }}
+      #   with:
+      #     route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
+      #     body: |
+      #       The Terraform apply output is as follows:
+      #       \`\`\`json
+      #       ${{ steps.read-output.outputs.contents }}
+      #       \`\`\`
+      - name: Create comment with the Terraform output
+        uses: peter-evans/create-or-update-comment@v4
         with:
-          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
+          issue-number: 1
           body: |
-            The Terraform apply output is as follows:
-            \`\`\`json
             ${{ steps.read-output.outputs.contents }}
-            \`\`\`
+          reactions: '+1'
