@@ -160,7 +160,7 @@ jobs:
 
       - name: Add comment
         run: |
-          gh issue comment 1 --body "This is a test comment added by a GitHub Action!"
+          gh issue comment 1 --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
         env:
           GH_TOKEN: ${{ github.token }} 
 
