@@ -153,6 +153,5 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: 1
-          body: |
-            ${{ steps.read-output.outputs.contents }}
+          body-path: '${{ github.workspace }}/tf/terraform-output.json'
           reactions: '+1'
