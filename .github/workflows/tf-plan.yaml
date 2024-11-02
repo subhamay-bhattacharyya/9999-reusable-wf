@@ -71,7 +71,8 @@ jobs:
         id: pass-issue-number
         run: |
           echo "issue-number: ${{ inputs.issue-number }}"
-          echo "issue-number=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
+          # echo "issue-number=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
+          echo "issue-number=`echo ${{ inputs.issue-number }}`" >> $GITHUB_OUTPUT
 
       - name: Git checkout
         id: git-checkout
