@@ -57,10 +57,10 @@ jobs:
       github-env: devl
       # tfvar-file: devl.terraform.tfvars
     # secrets:
-      aws-region: ${{ inputs.aws-region }}
-      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
-      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
+      aws-region: ${{ vars.AWS_REGION }}
+      aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
+      kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
+      aws-tf-state-bucket-name: ${{ vars.DEVL_AWS_TF_STATE_BUCKET_NAME }}
   _2-test:
     name: "Terraform Destroy (test)"
     needs: [ _1-devl ]
@@ -69,10 +69,10 @@ jobs:
       github-env: test
       # tfvar-file: test.terraform.tfvars
     # secrets:
-      aws-region: ${{ inputs.aws-region }}
-      aws-role-arn: ${{ inputs.test-aws-role-arn }}
-      kms-key-arn: ${{ inputs.test-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ inputs.test-aws-tf-state-bucket-name }}
+      aws-region: ${{ vars.AWS_REGION }}
+      aws-role-arn: ${{ vars.TEST_AWS_ROLE_ARN }}
+      kms-key-arn: ${{ vars.TEST_AWS_KMS_KEY_ARN }}
+      aws-tf-state-bucket-name: ${{ vars.TEST_AWS_TF_STATE_BUCKET_NAME }}
   _3-prod:
     name: "Terraform Destroy (prod)"
     needs: [ _2-test ]
@@ -81,7 +81,7 @@ jobs:
       github-env: prod
       # tfvar-file: prod.terraform.tfvars
     # secrets:
-      aws-region: ${{ inputs.aws-region }}
-      aws-role-arn: ${{ inputs.prod-aws-role-arn }}
-      kms-key-arn: ${{ inputs.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ inputs.prod-aws-tf-state-bucket-name }}
+      aws-region: ${{ vars.AWS_REGION }}
+      aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
+      kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
+      aws-tf-state-bucket-name: ${{ vars.PROD_AWS_TF_STATE_BUCKET_NAME }}
