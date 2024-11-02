@@ -177,5 +177,6 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: 1
-          body-path: '${{ github.workspace }}/tf-plan-${{ github.sha }}.md'
-          reactions: '+1'
+          # body-path: '${{ github.workspace }}/tf-plan-${{ github.sha }}.md'
+          body: "${{ steps.read-output.outputs.contents }}"
+          reactions: "+1"
