@@ -45,6 +45,7 @@ permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
   pull-requests: write # This is required for gh bot to comment PR
+  issues: write  # Permission to create comments on issues
 jobs:
   apply:
     name: "TF Apply (${{ inputs.github-env }})"
@@ -157,16 +158,21 @@ jobs:
           echo "************** Issue Comment ***************"
           cat $tf_output_file
 
+      - name: Add comment
+        run: |
+          gh issue comment 1 --body "This is a test comment added by a GitHub Action!"
+        env:
+          GH_TOKEN: ${{ secrets.GIT_TOKEN }} 
 
       # - name: Use Issue Number from Previous Job
       #   run: |
       #     echo "The issue number is ${{ inputs.issue-number }}"
 
-      - name: Read Terraform Output
-        id: read-output
-        uses: andstor/file-reader-action@v1.0.0
-        with:
-          path: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
+      # - name: Read Terraform Output
+      #   id: read-output
+      #   uses: andstor/file-reader-action@v1.0.0
+      #   with:
+      #     path: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
 
       # - name: Create comment with the Terraform output
       #   uses: peter-evans/create-or-update-comment@v4
@@ -186,13 +192,13 @@ jobs:
       #     # gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
       #     gh issue comment 1 --body "test comment"
 
-      - name: Create comment with the Terraform output
-        id: add-comment
-        uses: octokit/request-action@v2.4.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
-          mediaType: |
-            format: raw
-          body: "Hello World"
+      # - name: Create comment with the Terraform output
+      #   id: add-comment
+      #   uses: octokit/request-action@v2.4.0
+      #   env:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #   with:
+      #     route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
+      #     mediaType: |
+      #       format: raw
+      #     body: "Hello World"
