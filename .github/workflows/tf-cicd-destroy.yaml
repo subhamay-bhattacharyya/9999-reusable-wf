@@ -2,48 +2,48 @@ name: "Destroy"
 
 on: 
   workflow_call:
-    inputs: 
-      aws-region:
-        description: 'Specifies the AWS Region.'
-        required: true
-        type: string
-        required: true
-      devl-aws-role-arn:
-        description: 'Specifies the AWS IAM Role arn in development environment.'
-        required: true
-        type: string
-      devl-kms-key-arn:
-        description: 'Specifies the AWS KMS Key arn in development environment.'
-        required: true
-        type: string
-      devl-aws-tf-state-bucket-name:
-        description: 'Specifies the AWS Terraform state S3 bucket name in development environment.'
-        required: true
-        type: string
-      test-aws-role-arn:
-        description: 'Specifies the AWS IAM Role arn in test environment.'
-        required: true
-        type: string
-      test-kms-key-arn:
-        description: 'Specifies the AWS KMS Key arn in test environment.'
-        required: true
-        type: string
-      test-aws-tf-state-bucket-name:
-        description: 'Specifies the AWS Terraform state S3 bucket name in test environment.'
-        required: true
-        type: string
-      prod-aws-role-arn:
-        description: 'Specifies the AWS IAM Role arn in production environment.'
-        required: true
-        type: string
-      prod-kms-key-arn:
-        description: 'Specifies the AWS KMS Key arn in production environment.'
-        required: true
-        type: string
-      prod-aws-tf-state-bucket-name:
-        description: 'Specifies the AWS Terraform state S3 bucket name in production environment.'
-        required: true
-        type: string
+    # inputs: 
+    #   aws-region:
+    #     description: 'Specifies the AWS Region.'
+    #     required: true
+    #     type: string
+    #     required: true
+    #   devl-aws-role-arn:
+    #     description: 'Specifies the AWS IAM Role arn in development environment.'
+    #     required: true
+    #     type: string
+    #   devl-kms-key-arn:
+    #     description: 'Specifies the AWS KMS Key arn in development environment.'
+    #     required: true
+    #     type: string
+    #   devl-aws-tf-state-bucket-name:
+    #     description: 'Specifies the AWS Terraform state S3 bucket name in development environment.'
+    #     required: true
+    #     type: string
+    #   test-aws-role-arn:
+    #     description: 'Specifies the AWS IAM Role arn in test environment.'
+    #     required: true
+    #     type: string
+    #   test-kms-key-arn:
+    #     description: 'Specifies the AWS KMS Key arn in test environment.'
+    #     required: true
+    #     type: string
+    #   test-aws-tf-state-bucket-name:
+    #     description: 'Specifies the AWS Terraform state S3 bucket name in test environment.'
+    #     required: true
+    #     type: string
+    #   prod-aws-role-arn:
+    #     description: 'Specifies the AWS IAM Role arn in production environment.'
+    #     required: true
+    #     type: string
+    #   prod-kms-key-arn:
+    #     description: 'Specifies the AWS KMS Key arn in production environment.'
+    #     required: true
+    #     type: string
+    #   prod-aws-tf-state-bucket-name:
+    #     description: 'Specifies the AWS Terraform state S3 bucket name in production environment.'
+    #     required: true
+    #     type: string
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
