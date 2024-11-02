@@ -97,7 +97,6 @@ jobs:
     with:
       github-env: devl
       tfvar-file: devl.terraform.tfvars
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
@@ -110,7 +109,6 @@ jobs:
     with:
       github-env: test
       tfvar-file: test.terraform.tfvars
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.test-aws-role-arn }}
       kms-key-arn: ${{ inputs.test-kms-key-arn }}
@@ -123,7 +121,6 @@ jobs:
     with:
       github-env: prod
       tfvar-file: prod.terraform.tfvars
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.prod-aws-role-arn }}
       kms-key-arn: ${{ inputs.prod-kms-key-arn }}
@@ -138,7 +135,6 @@ jobs:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
@@ -153,7 +149,6 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
@@ -170,7 +165,6 @@ jobs:
       github-env: test
       tfvar-file: test.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.test-aws-role-arn }}
       kms-key-arn: ${{ inputs.test-kms-key-arn }}
@@ -188,7 +182,6 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: prod.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.prod-aws-role-arn }}
       kms-key-arn: ${{ inputs.prod-kms-key-arn }}
@@ -205,7 +198,6 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
@@ -220,7 +212,6 @@ jobs:
     with:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
@@ -240,7 +231,6 @@ jobs:
     with:
       pr-title: Pull Request to merge ${{ github.ref_name }} with main
       pr-approver: ${{ inputs.pr-approver }}
-    # secrets:
       aws-region: ${{ inputs.aws-region }}
       aws-role-arn: ${{ inputs.devl-aws-role-arn }}
       kms-key-arn: ${{ inputs.devl-kms-key-arn }}
