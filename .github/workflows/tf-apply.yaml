@@ -139,66 +139,24 @@ jobs:
           echo "<html>"                                                                             >  $tf_output_file
           echo "  <body>"                                                                           >> $tf_output_file
           echo "    <p>"                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md
-          echo "    Resources created for <b>${{ inputs.github-env }}:</b>"                         >> $tf_output_file
+          echo "    Resources created by branch : <b>${{ github.ref_name }}</b>"                    >> $tf_output_file
           echo "    </p>"                                                                           >> $tf_output_file
-          echo "    <font size='1'>"                                                                >> ${{ github.workspace }}/tf-plan-${{ github.sha }}.md          
+          echo "    <font size='1'>"                                                                >> $tf_output_file          
           echo "    <table border='1'>"                                                             >> $tf_output_file
-
           # Parse the JSON file and generate the HTML table
           jq -r 'to_entries | .[] | "<tr><td>\(.key)</td><td>\(.value)</td></tr>"' $json_file       >> $tf_output_file
-
-          # End the HTML file
           echo "    </table>"                                                                       >> $tf_output_file
           echo "    </font>"                                                                        >> $tf_output_file
           echo "  </body>"                                                                          >> $tf_output_file
           echo "</html>"                                                                            >> $tf_output_file
-
-          chmod +wr $tf_output_file
-          echo ${{ github.workspace }}/tf-output-${{ github.sha }}.md
-          echo "************** Issue Comment ***************"
-          cat $tf_output_file
+          # End the HTML file
+          # chmod +wr $tf_output_file
+          # echo ${{ github.workspace }}/tf-output-${{ github.sha }}.md
+          # echo "************** Issue Comment ***************"
+          # cat $tf_output_file
 
       - name: Add comment
         run: |
-          gh issue comment 1 --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
+          gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
         env:
-          GH_TOKEN: ${{ github.token }} 
-
-      # - name: Use Issue Number from Previous Job
-      #   run: |
-      #     echo "The issue number is ${{ inputs.issue-number }}"
-
-      # - name: Read Terraform Output
-      #   id: read-output
-      #   uses: andstor/file-reader-action@v1.0.0
-      #   with:
-      #     path: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
-
-      # - name: Create comment with the Terraform output
-      #   uses: peter-evans/create-or-update-comment@v4
-      #   with:
-      #     issue-number: 1
-      #     # body-path: "${{ github.workspace }}/tf-output-${{ github.sha }}.md"
-      #     body: "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
-      #     reactions: "+1"
-
-      # - name: Create comment with the Terraform output
-      #   env:
-      #     GITHUB_TOKEN: "${{ secrets.git-token }}"
-      #   run: |
-      #     echo "************** Issue Comment ***************"
-      #     cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
-      #     echo "************** Issue Comment ***************"
-      #     # gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
-      #     gh issue comment 1 --body "test comment"
-
-      # - name: Create comment with the Terraform output
-      #   id: add-comment
-      #   uses: octokit/request-action@v2.4.0
-      #   env:
-      #     GITHUB_TOKEN: ${{ github.token }}
-      #   with:
-      #     route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
-      #     mediaType: |
-      #       format: raw
-      #     body: "Hello World"
+          GH_TOKEN: ${{ github.token }}
