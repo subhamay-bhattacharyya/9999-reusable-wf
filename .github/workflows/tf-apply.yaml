@@ -178,6 +178,8 @@ jobs:
       #     reactions: "+1"
 
       - name: Create comment with the Terraform output
+        env:
+          GITHUB_TOKEN: ${{ secrets.git-token }}
         run: |
           echo "************** Issue Comment ***************"
           cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
