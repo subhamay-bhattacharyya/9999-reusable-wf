@@ -165,20 +165,10 @@ jobs:
 
       - name: Read Terraform Output
         id: read-output
-        run: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
+        uses: andstor/file-reader-action@v1.0.0
+        with:
+          path: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
 
-      # - name: Post Comment on GitHub Issue
-      #   id: post-comment
-      #   uses: octokit/request-action@v2.1.1
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.git-token }}
-      #   with:
-      #     route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
-      #     body: |
-      #       The Terraform apply output is as follows:
-      #       \`\`\`json
-      #       ${{ steps.read-output.outputs.contents }}
-      #       \`\`\`
       - name: Create comment with the Terraform output
         uses: peter-evans/create-or-update-comment@v4
         with:
