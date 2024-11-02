@@ -162,7 +162,7 @@ jobs:
         run: |
           gh issue comment 1 --body "This is a test comment added by a GitHub Action!"
         env:
-          GH_TOKEN: ${{ secrets.GIT_TOKEN }} 
+          GH_TOKEN: ${{ github.token }} 
 
       # - name: Use Issue Number from Previous Job
       #   run: |
