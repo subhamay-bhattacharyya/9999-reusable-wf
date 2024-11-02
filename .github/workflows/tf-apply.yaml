@@ -153,6 +153,11 @@ jobs:
           echo "  </body>"                                                                          >> $tf_output_file
           echo "</html>"                                                                            >> $tf_output_file
 
+          chmod +w $tf_output_file
+          echo "************** Issue Comment ***************"
+          cat $tf_output_file
+
+
       # - name: Use Issue Number from Previous Job
       #   run: |
       #     echo "The issue number is ${{ inputs.issue-number }}"
