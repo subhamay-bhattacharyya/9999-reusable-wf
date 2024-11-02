@@ -190,7 +190,7 @@ jobs:
         id: add-comment
         uses: octokit/request-action@v2.4.0
         env:
-          GITHUB_TOKEN: ${{ secrets.git-token }}
+          GITHUB_TOKEN: ${{ github.token }}
         with:
           route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues/1/comments
           mediaType: |
