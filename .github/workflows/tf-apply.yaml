@@ -169,17 +169,18 @@ jobs:
         with:
           path: ${{ github.workspace }}/tf-output-${{ github.sha }}.md
 
-      - name: Create comment with the Terraform output
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: 1
-          # body-path: "${{ github.workspace }}/tf-output-${{ github.sha }}.md"
-          body: "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
-          reactions: "+1"
-
       # - name: Create comment with the Terraform output
-      #   run: |
-      #     echo "************** Issue Comment ***************"
-      #     cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
-      #     echo "************** Issue Comment ***************"
-      #     gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
+      #   uses: peter-evans/create-or-update-comment@v4
+      #   with:
+      #     issue-number: 1
+      #     # body-path: "${{ github.workspace }}/tf-output-${{ github.sha }}.md"
+      #     body: "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
+      #     reactions: "+1"
+
+      - name: Create comment with the Terraform output
+        run: |
+          echo "************** Issue Comment ***************"
+          cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md
+          echo "************** Issue Comment ***************"
+          # gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
+          gh issue comment 1 --body "test comment"
