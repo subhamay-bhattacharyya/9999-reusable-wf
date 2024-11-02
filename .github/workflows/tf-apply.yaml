@@ -22,15 +22,22 @@ on:
         description: 'Specifies the GitHub Issue Number.'
         required: true
         type: string
-    secrets:
       aws-region:
+        description: 'Specifies the AWS Region.'
         required: true
+        type: string
       aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn.'
         required: true
       aws-tf-state-bucket-name:
+        description: 'Specifies the AWS S3 bucket name.'
         required: true
+        type: string
       kms-key-arn: 
+        description: 'Specifies the AWS KMS Key arn.'
         required: true
+        type: string
+    secrets:
       git-token:
         required: true
 permissions:
@@ -89,8 +96,8 @@ jobs:
         id: aws-config
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ vars.aws-role-arn }}
+          aws-region: ${{ vars.aws-region }}
           role-session-name: github-aws-terraform-oidc
 
       - name: Configure and cache Terraform plugin

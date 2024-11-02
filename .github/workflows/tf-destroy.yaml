@@ -13,15 +13,22 @@ on:
         required: false
         type: string
         default: latest
-    secrets:
       aws-region:
+        description: 'Specifies the AWS Region.'
         required: true
+        type: string
       aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn.'
         required: true
       aws-tf-state-bucket-name:
+        description: 'Specifies the AWS S3 bucket name.'
         required: true
+        type: string
       kms-key-arn: 
+        description: 'Specifies the AWS KMS Key arn.'
         required: true
+        type: string
+
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -45,8 +52,8 @@ jobs:
         id: aws-config
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ vars.aws-role-arn }}
+          aws-region: ${{ vars.aws-region }}
           role-session-name: github-aws-terraform-oidc
 
       - name: Configure and cache Terraform plugin
@@ -63,11 +70,11 @@ jobs:
       - name: Terraform Init
         id: init
         env:
-          AWS_BUCKET_NAME: ${{ secrets.aws-tf-state-bucket-name }}
+          AWS_BUCKET_NAME: ${{ vars.aws-tf-state-bucket-name }}
           AWS_BUCKET_KEY_NAME: ${{ github.event.repository.name }}
         run: |
           cd ${{ github.workspace }}/tf
-          terraform init -backend-config="bucket=${{ secrets.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ secrets.aws-region }}"
+          terraform init -backend-config="bucket=${{ inputs.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ inputs.aws-region }}"
 
       - name: Terraform Destroy
         id: destroy

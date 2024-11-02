@@ -15,28 +15,49 @@ name: CI/CD Pipeline for Terraform
         description: Specifies the GitHub User who can approve a Pull Request.
         required: true
         type: string
-    secrets:
-      git-token:
-        required: true
       aws-region:
+        description: 'Specifies the AWS Region.'
+        required: true
+        type: string
         required: true
       devl-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in development environment.'
         required: true
+        type: string
       devl-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in development environment.'
         required: true
+        type: string
       devl-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in development environment.'
         required: true
+        type: string
       test-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in test environment.'
         required: true
+        type: string
       test-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in test environment.'
         required: true
+        type: string
       test-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in test environment.'
         required: true
+        type: string
       prod-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in production environment.'
         required: true
+        type: string
       prod-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in production environment.'
         required: true
+        type: string
       prod-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in production environment.'
+        required: true
+        type: string
+    secrets:
+      git-token:
         required: true
 
 permissions:
@@ -76,11 +97,11 @@ jobs:
     with:
       github-env: devl
       tfvar-file: devl.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
   _2-3-tf-plan-test:
     if: github.ref == 'refs/heads/main'
     needs:
@@ -89,11 +110,11 @@ jobs:
     with:
       github-env: test
       tfvar-file: test.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.test-aws-role-arn }}
-      kms-key-arn: ${{ secrets.test-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.test-aws-role-arn }}
+      kms-key-arn: ${{ inputs.test-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.test-aws-tf-state-bucket-name }}
   _2-4-tf-plan-prod:
     if: github.ref == 'refs/heads/main'
     needs:
@@ -102,11 +123,11 @@ jobs:
     with:
       github-env: prod
       tfvar-file: prod.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.prod-aws-role-arn }}
+      kms-key-arn: ${{ inputs.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.prod-aws-tf-state-bucket-name }}
   _3-1-tf-plan-feature:
     needs:
       - _2-1-1-tf-lint
@@ -117,11 +138,11 @@ jobs:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
   _3-2-tf-apply-devl:
     needs:
       - _2-2-tf-plan-devl
@@ -132,11 +153,12 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
     secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
       git-token: ${{ secrets.git-token }}
   _3-3-tf-apply-test:
     if: github.ref == 'refs/heads/main'
@@ -148,11 +170,12 @@ jobs:
       github-env: test
       tfvar-file: test.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.test-aws-role-arn }}
-      kms-key-arn: ${{ secrets.test-kms-key-arn }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.test-aws-role-arn }}
+      kms-key-arn: ${{ inputs.test-kms-key-arn }}
       aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+    secrets:
       git-token: ${{ secrets.git-token }}
   _3-4-tf-apply-prod:
     needs:
@@ -165,11 +188,12 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: prod.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.prod-aws-role-arn }}
+      kms-key-arn: ${{ inputs.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.prod-aws-tf-state-bucket-name }}
     secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
       git-token: ${{ secrets.git-token }}
   _4-1-tf-apply-feature:
     needs:
@@ -181,11 +205,12 @@ jobs:
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
       issue-number: ${{ github.event.issue.number }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
     secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
       git-token: ${{ secrets.git-token }}
   _5-1-tf-destroy-feature:
     needs:
@@ -195,11 +220,11 @@ jobs:
     with:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
   _6-1-create-release:
     needs:
       - _5-1-tf-destroy-feature
@@ -215,9 +240,10 @@ jobs:
     with:
       pr-title: Pull Request to merge ${{ github.ref_name }} with main
       pr-approver: ${{ inputs.pr-approver }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
     secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
       git-token: ${{ secrets.git-token }}

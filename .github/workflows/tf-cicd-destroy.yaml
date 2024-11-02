@@ -2,27 +2,48 @@ name: "Destroy"
 
 on: 
   workflow_call:
-    secrets: 
-      aws-region: 
+    inputs: 
+      aws-region:
+        description: 'Specifies the AWS Region.'
         required: true
-      devl-aws-role-arn: 
+        type: string
         required: true
-      devl-kms-key-arn: 
+      devl-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in development environment.'
         required: true
-      devl-aws-tf-state-bucket-name: 
+        type: string
+      devl-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in development environment.'
         required: true
-      test-aws-role-arn: 
+        type: string
+      devl-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in development environment.'
         required: true
-      test-kms-key-arn: 
+        type: string
+      test-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in test environment.'
         required: true
-      test-aws-tf-state-bucket-name: 
+        type: string
+      test-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in test environment.'
         required: true
-      prod-aws-role-arn: 
+        type: string
+      test-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in test environment.'
         required: true
-      prod-kms-key-arn: 
+        type: string
+      prod-aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn in production environment.'
         required: true
-      prod-aws-tf-state-bucket-name: 
+        type: string
+      prod-kms-key-arn:
+        description: 'Specifies the AWS KMS Key arn in production environment.'
         required: true
+        type: string
+      prod-aws-tf-state-bucket-name:
+        description: 'Specifies the AWS Terraform state S3 bucket name in production environment.'
+        required: true
+        type: string
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -35,11 +56,11 @@ jobs:
     with:
       github-env: devl
       # tfvar-file: devl.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.devl-aws-role-arn }}
-      kms-key-arn: ${{ secrets.devl-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.devl-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.devl-aws-role-arn }}
+      kms-key-arn: ${{ inputs.devl-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.devl-aws-tf-state-bucket-name }}
   _2-test:
     name: "Terraform Destroy (test)"
     needs: [ _1-devl ]
@@ -47,11 +68,11 @@ jobs:
     with:
       github-env: test
       # tfvar-file: test.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.test-aws-role-arn }}
-      kms-key-arn: ${{ secrets.test-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.test-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.test-aws-role-arn }}
+      kms-key-arn: ${{ inputs.test-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.test-aws-tf-state-bucket-name }}
   _3-prod:
     name: "Terraform Destroy (prod)"
     needs: [ _2-test ]
@@ -59,8 +80,8 @@ jobs:
     with:
       github-env: prod
       # tfvar-file: prod.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+    # secrets:
+      aws-region: ${{ inputs.aws-region }}
+      aws-role-arn: ${{ inputs.prod-aws-role-arn }}
+      kms-key-arn: ${{ inputs.prod-kms-key-arn }}
+      aws-tf-state-bucket-name: ${{ inputs.prod-aws-tf-state-bucket-name }}

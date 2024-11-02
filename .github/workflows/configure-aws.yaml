@@ -30,6 +30,6 @@ jobs:
       - name: Configure AWS credentials from AWS account
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ vars.aws-role-arn }}
+          aws-region: ${{ vars.aws-region }}
           role-session-name: github-aws-cloudformation-oidc

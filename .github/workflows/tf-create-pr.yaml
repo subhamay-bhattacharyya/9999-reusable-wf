@@ -12,15 +12,22 @@ on:
         description: 'Specifies the GitHub User who can approve a Pull Request.'
         required: true
         type: string
-    secrets:
       aws-region:
+        description: 'Specifies the AWS Region.'
         required: true
+        type: string
       aws-role-arn:
+        description: 'Specifies the AWS IAM Role arn.'
         required: true
       aws-tf-state-bucket-name:
+        description: 'Specifies the AWS S3 bucket name.'
         required: true
+        type: string
       kms-key-arn: 
+        description: 'Specifies the AWS KMS Key arn.'
         required: true
+        type: string
+    secrets:
       git-token:
         required: true
 
@@ -50,8 +57,8 @@ jobs:
         id: configure-aws-credentials
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ secrets.aws-role-arn }}
-          aws-region: ${{ secrets.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
           role-session-name: github-aws-terraform-oidc
 
       - name: Add GitHub attributes to terraform.tfvars file
@@ -66,7 +73,7 @@ jobs:
           echo -e 'GitHubSHA            = "${{ github.sha }}"'                                                          >> terraform.tfvars 
           echo -e 'GitHubWFRunNumber    = ${{ github.run_number }}'                                                     >> terraform.tfvars 
           echo -e 'GitHubRepository     = "${{ github.event.repository.name }}"'                                        >> terraform.tfvars
-          echo -e 'KmsMasterKeyId       = "${{ secrets.kms-key-arn }}"'                                                 >> terraform.tfvars 
+          echo -e 'KmsMasterKeyId       = "${{ inputs.kms-key-arn }}"'                                                 >> terraform.tfvars 
           echo "=========================================== terraform.tfvars ==========================================="
           cat terraform.tfvars 
 
@@ -84,12 +91,12 @@ jobs:
       - name: Terraform Init
         id: init
         env:
-          AWS_BUCKET_NAME: ${{ secrets.aws-tf-state-bucket-name }}
+          AWS_BUCKET_NAME: ${{ inputs.aws-tf-state-bucket-name }}
           AWS_BUCKET_KEY_NAME: ${{ github.event.repository.name }}
         run: |
           cd ${{ github.workspace }}/tf
           terraform fmt
-          terraform init -backend-config="bucket=${{ secrets.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ secrets.aws-region }}"
+          terraform init -backend-config="bucket=${{ inputs.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ inputs.aws-region }}"
 
       - name: Terraform Plan
         id: plan
