@@ -107,7 +107,7 @@ jobs:
       github-env: devl
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
       tfvar-file: devl.terraform.tfvars
-      issue-number: 1
+      issue-number: "1"
       aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
@@ -171,8 +171,6 @@ jobs:
     with:
       github-env: feature
       terraform-ver: ${{ vars.TERRAFORM_VERSION }}
-      tfvar-file: devl.terraform.tfvars
-      issue-number: "1"
       aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
