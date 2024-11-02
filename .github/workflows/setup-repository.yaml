@@ -40,7 +40,7 @@ jobs:
         id: dump-github-context
         run: |
           echo "GitHub context:"
-          echo "${{ toJson(github) }}"
+          echo "${{ toJson(github).event }}"
 
       - name: Get Repository Details
         id: get-repo-details
