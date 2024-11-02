@@ -97,8 +97,8 @@ jobs:
         id: aws-config
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-          role-to-assume: ${{ vars.aws-role-arn }}
-          aws-region: ${{ vars.aws-region }}
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
           role-session-name: github-aws-terraform-oidc
 
       - name: Configure and cache Terraform plugin
@@ -115,12 +115,12 @@ jobs:
       - name: Terraform Init
         id: init
         env:
-          AWS_BUCKET_NAME: ${{ secrets.aws-tf-state-bucket-name }}
+          AWS_BUCKET_NAME: ${{ inputs.aws-tf-state-bucket-name }}
           AWS_BUCKET_KEY_NAME: ${{ github.event.repository.name }}
         run: |
           cd ${{ github.workspace }}/tf
           terraform fmt
-          terraform init -backend-config="bucket=${{ secrets.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ secrets.aws-region }}"
+          terraform init -backend-config="bucket=${{ inputs.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ inputs.aws-region }}"
 
       - name: Terraform Apply
         id: apply
