@@ -173,6 +173,7 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: 1
-          body-path: "${{ github.workspace }}/tf-output-${{ github.sha }}.md"
-          # body-path: "${{ steps.read-output.outputs.contents }}"
+          # body-path: "${{ github.workspace }}/tf-output-${{ github.sha }}.md"
+          body: |
+            ${{ steps.read-output.outputs.content }}
           reactions: "+1"
