@@ -58,7 +58,7 @@ jobs:
 
       - name: Print issue number
         id: print-issue-number
-        run:|
+        run: |
           echo "issue-number: ${{ inputs.issue-number }}"
 
       - name: Git checkout
