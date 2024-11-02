@@ -29,6 +29,7 @@ on:
       aws-role-arn:
         description: 'Specifies the AWS IAM Role arn.'
         required: true
+        type: string
       aws-tf-state-bucket-name:
         description: 'Specifies the AWS S3 bucket name.'
         required: true
