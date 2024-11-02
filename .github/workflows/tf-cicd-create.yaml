@@ -15,47 +15,6 @@ on:
         description: Specifies the GitHub User who can approve a Pull Request.
         required: true
         type: string
-      # aws-region:
-      #   description: 'Specifies the AWS Region.'
-      #   required: true
-      #   type: string
-      #   required: true
-      # devl-aws-role-arn:
-      #   description: 'Specifies the AWS IAM Role arn in development environment.'
-      #   required: true
-      #   type: string
-      # devl-kms-key-arn:
-      #   description: 'Specifies the AWS KMS Key arn in development environment.'
-      #   required: true
-      #   type: string
-      # devl-aws-tf-state-bucket-name:
-      #   description: 'Specifies the AWS Terraform state S3 bucket name in development environment.'
-      #   required: true
-      #   type: string
-      # test-aws-role-arn:
-      #   description: 'Specifies the AWS IAM Role arn in test environment.'
-      #   required: true
-      #   type: string
-      # test-kms-key-arn:
-      #   description: 'Specifies the AWS KMS Key arn in test environment.'
-      #   required: true
-      #   type: string
-      # test-aws-tf-state-bucket-name:
-      #   description: 'Specifies the AWS Terraform state S3 bucket name in test environment.'
-      #   required: true
-      #   type: string
-      # prod-aws-role-arn:
-      #   description: 'Specifies the AWS IAM Role arn in production environment.'
-      #   required: true
-      #   type: string
-      # prod-kms-key-arn:
-      #   description: 'Specifies the AWS KMS Key arn in production environment.'
-      #   required: true
-      #   type: string
-      # prod-aws-tf-state-bucket-name:
-      #   description: 'Specifies the AWS Terraform state S3 bucket name in production environment.'
-      #   required: true
-      #   type: string
     secrets:
       git-token:
         required: true
@@ -121,7 +80,7 @@ jobs:
     with:
       github-env: prod
       tfvar-file: prod.terraform.tfvars
-      aws-region: ${{ inputs.aws-region }}
+      aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
       aws-tf-state-bucket-name: ${{ vars.PROD_AWS_TF_STATE_BUCKET_NAME }}
