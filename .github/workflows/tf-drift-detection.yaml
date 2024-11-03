@@ -8,35 +8,46 @@ name: Detect Drift
 
 permissions:
   id-token: write # This is required for aws oidc connection
-  contents: write # This is required for actions/checkout
+  contents: read # This is required for actions/checkout
   pull-requests: write # This is required for gh bot to comment PR  
   issues: write
 
 jobs:
   detect-drift:
     name: "Terraform Plan (prod)"
-    uses: ./.github/workflows/tf-plan.yaml
-    with:
-      github-env: prod
-      tfvar-file: prod.terraform.tfvars
-      issue-number: "0"
-      aws-region: ${{ vars.AWS_REGION }}
-      aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
-      kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
-      aws-tf-state-bucket-name: ${{ vars.PROD_AWS_TF_STATE_BUCKET_NAME }}
-  create-issue:
-    name: "Create Issue"
-    needs: detect-drift
-    if: ${{ needs.detect-drift.outputs.change-detected == 'true' }}
-    uses: ./.github/workflows/create-issue.yaml
-    with:
-      git-token: ${{ secrets.git-token }}
-      issue-title: "Drift Detected in prod"
-      issue-body: "Drift detected in prod. Please review and take necessary action."
-      issue-assignee: "github-actions[bot]"
-      issue-labels: "drift"
-      issue-project: "Drift Detection"
-      issue-milestone: "Drift Detection"
-      issue-assignees: "github-actions[bot]"
-      issue-assignees: "github-actions[bot]"
-      issue-assignees: "github-actions[bot]"
+    runs-on: ubuntu-latest
+    steps:  
+      - name: Run Terraform Plan
+        id: plan
+        uses: ./.github/workflows/tf-plan.yaml
+        with:
+          github-env: prod
+          tfvar-file: prod.terraform.tfvars
+          issue-number: "0"
+          aws-region: ${{ vars.AWS_REGION }}
+          aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
+          kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
+          aws-tf-state-bucket-name: ${{ vars.PROD_AWS_TF_STATE_BUCKET_NAME }}
+
+      - name: Check Drift 
+        id: drift-check
+        run: |
+          echo "::set-output name=change-detected::false"
+          if [[ "${{ steps.plan.outputs.tf-plan }}" == *"No changes"* ]]; then
+            echo "No changes detected in the terraform plan."
+          else
+            echo "Changes detected in the terraform plan."
+            echo "::set-output name=change-detected::true"
+          fi
+
+        - name: Create Issue
+          id: create-issue
+          if: [[ "${{ steps.plan.outputs.tf-plan }}" != *"No changes"* ]]; then
+          uses: octokit/request-action@v2.1.1
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          with:
+            route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues
+            title: "Terraform Drift Detected"
+            body: |
+              Drift has been detected in the Terraform-managed infrastructure. Please review the plan output and take necessary actions.

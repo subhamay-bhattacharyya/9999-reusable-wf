@@ -140,12 +140,6 @@ jobs:
           terraform fmt -check
         continue-on-error: false
 
-      # - name: Terraform Validate
-      #   id: validate
-      #   run: |
-      #     cd ${{ github.workspace }}/tf
-      #     terraform validate -no-color
-
       - name: Terraform Plan
         id: plan
         run: |
