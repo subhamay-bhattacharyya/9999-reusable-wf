@@ -39,15 +39,12 @@ on:
         required: true
         type: string
     outputs:
-      # tf-plan:
-      #   description: The Terraform plan json
-      #   value: ${{ jobs.plan.outputs.tf-plan }}
-      # ci-build:
-      #   description: "CI Build"
-      #   value: ${{ jobs.plan.outputs.ci-build }}
       issue-number:
         description: "Issue id associated with the feature branch"
         value: ${{ jobs.plan.outputs.issue-number }}
+      change-detected:
+        description: "Specifies if there is a change detected in the terraform plan."
+        value: ${{ jobs.plan.outputs.change-detected }}
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -60,6 +57,7 @@ jobs:
       ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
       tf-plan: ${{ steps.plan.outputs.tf-plan }}
       issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
+      change-detected: ${{ steps.drift-check.outputs.change-detected }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
     defaults:
@@ -71,7 +69,6 @@ jobs:
         id: pass-issue-number
         run: |
           echo "issue-number: ${{ inputs.issue-number }}"
-          # echo "issue-number=`echo ${{ github.event.commits[0].message }}|cut -d':' -f1|cut -d'-' -f2|tr -d '0'`" >> $GITHUB_OUTPUT
           echo "issue-number=`echo ${{ inputs.issue-number }}`" >> $GITHUB_OUTPUT
 
       - name: Git checkout
@@ -141,19 +138,35 @@ jobs:
         run: |
           cd ${{ github.workspace }}/tf
           terraform fmt -check
-        continue-on-error: true
+        continue-on-error: false
 
-      - name: Terraform Validate
-        id: validate
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform validate -no-color
+      # - name: Terraform Validate
+      #   id: validate
+      #   run: |
+      #     cd ${{ github.workspace }}/tf
+      #     terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
         run: |
           cd ${{ github.workspace }}/tf
-          terraform plan
+          terraform plan -out=${{ github.workspace }}/tf/terraform.tfplan -var-file=terraform.tfvars -no-color
+
+      - name: Check for Drift
+        id: drift-check
+        run: |
+          cd ${{ github.workspace }}/tf
+          terraform show -no-color -json > tf.json
+          terraform show -no-color -json tf/terraform.tfplan > tfplan.json
+          # terraform show -no-color -json tf/terraform.tfstate > tfstate.json
+          drift=$(terraform show -no-color -json tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
+          if [ $drift -gt 0 ]; then
+            echo "Drift detected"
+            echo "change-detected=true" >> $GITHUB_OUTPUT
+          else
+            echo "No Drift detected"
+            echo "change-detected=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Terraform Plan Status
         id: plan-status

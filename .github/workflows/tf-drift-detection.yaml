@@ -1,17 +1,9 @@
-name: Drift Detection
+name: Detect Drift
 
 'on':
   workflow_call:
     secrets:
       git-token:
-        required: true
-      aws-region:
-        required: true
-      prod-aws-role-arn:
-        required: true
-      prod-kms-key-arn:
-        required: true
-      prod-aws-tf-state-bucket-name:
         required: true
 
 permissions:
@@ -27,8 +19,24 @@ jobs:
     with:
       github-env: prod
       tfvar-file: prod.terraform.tfvars
-    secrets:
-      aws-region: ${{ secrets.aws-region }}
-      aws-role-arn: ${{ secrets.prod-aws-role-arn }}
-      kms-key-arn: ${{ secrets.prod-kms-key-arn }}
-      aws-tf-state-bucket-name: ${{ secrets.prod-aws-tf-state-bucket-name }}
+      issue-number: "0"
+      aws-region: ${{ vars.AWS_REGION }}
+      aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
+      kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
+      aws-tf-state-bucket-name: ${{ vars.PROD_AWS_TF_STATE_BUCKET_NAME }}
+  create-issue:
+    name: "Create Issue"
+    needs: detect-drift
+    if: ${{ needs.detect-drift.outputs.change-detected == 'true' }}
+    uses: ./.github/workflows/create-issue.yaml
+    with:
+      git-token: ${{ secrets.git-token }}
+      issue-title: "Drift Detected in prod"
+      issue-body: "Drift detected in prod. Please review and take necessary action."
+      issue-assignee: "github-actions[bot]"
+      issue-labels: "drift"
+      issue-project: "Drift Detection"
+      issue-milestone: "Drift Detection"
+      issue-assignees: "github-actions[bot]"
+      issue-assignees: "github-actions[bot]"
+      issue-assignees: "github-actions[bot]"
