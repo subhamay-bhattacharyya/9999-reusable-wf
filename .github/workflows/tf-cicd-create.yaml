@@ -83,7 +83,7 @@ jobs:
     with:
       github-env: prod
       tfvar-file: prod.terraform.tfvars
-      issue-number: ${{ needs._2-1-2-validate.outputs.issue-number }}
+      issue-number: ${{ needs._1-setup.outputs.issue-number }}
       aws-region: ${{ vars.AWS_REGION }}
       aws-role-arn: ${{ vars.PROD_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.PROD_AWS_KMS_KEY_ARN }}
