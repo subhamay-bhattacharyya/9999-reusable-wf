@@ -161,7 +161,7 @@ jobs:
           # echo "************** Issue Comment ***************"
           # cat $tf_output_file
 
-      - name: Add comment
+      - name: Add comment to the issue with the output of the terraform apply
         run: |
           gh issue comment ${{ inputs.issue-number }} --body "$(cat ${{ github.workspace }}/tf-output-${{ github.sha }}.md)"
         env:
