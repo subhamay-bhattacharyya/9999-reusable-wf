@@ -31,13 +31,13 @@ jobs:
 
       - name: Check Drift 
         id: drift-check
-        if: ${{ steps.plan.outputs['tf-plan'] != "No changes" }}
+        if: $${{ steps.plan.outputs.change-detected == 'true' }}
         run: |
           echo "Changes detected in the terraform plan."
 
       - name: Create Issue
         id: create-issue
-        if: ${{ steps.plan.outputs['tf-plan'] != "No changes" }}
+        if: ${{ steps.plan.outputs.change-detected == 'true' }}
         uses: octokit/request-action@v2.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
