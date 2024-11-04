@@ -9,7 +9,7 @@ permissions:
   pull-requests: write # This is required for gh bot to comment PR
  
 jobs:
-  plan:
+  update-reviewer:
     name: "Update Reviewer(s) (${{ inputs.github-env }})"
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
