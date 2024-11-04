@@ -2,15 +2,41 @@ name: "Destroy"
 
 on: 
   workflow_call:
-
+    inputs:
+      deploy-reviewer-test:
+        description: Specifies the GitHub User Id who can approve test deployment.
+        required: true
+        type: number
+      deploy-reviewer-prod:
+        description: Specifies the GitHub User Id who can approve prod deployment.
+        required: true
+        type: number
+      pr-approver:
+        description: Specifies the GitHub User who can approve a Pull Request.
+        required: true
+        type: string
+    secrets:
+      git-token:
+        required: true
+        
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
   pull-requests: write # This is required for gh bot to comment PR  
 
 jobs:
-  _1-devl:
+  _1-setup:
+    name: "Setup Repository"
+    uses: ./.github/workflows/setup-repository.yaml
+    with:
+      deploy-reviewer-test: ${{ inputs.deploy-reviewer-test }}
+      deploy-reviewer-prod: ${{ inputs.deploy-reviewer-prod }}
+      pr-approver: ${{ inputs.pr-approver }}
+    secrets:
+      git-token: ${{ secrets.git-token }}
+  _2-devl:
     name: "Terraform Destroy (devl)"
+    needs: [ _1-setup ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: devl
@@ -18,9 +44,9 @@ jobs:
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
       aws-tf-state-bucket-name: ${{ vars.DEVL_AWS_TF_STATE_BUCKET_NAME }}
-  _2-test:
+  _3-test:
     name: "Terraform Destroy (test)"
-    needs: [ _1-devl ]
+    needs: [ _2-devl ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: test
@@ -28,9 +54,9 @@ jobs:
       aws-role-arn: ${{ vars.TEST_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.TEST_AWS_KMS_KEY_ARN }}
       aws-tf-state-bucket-name: ${{ vars.TEST_AWS_TF_STATE_BUCKET_NAME }}
-  _3-prod:
+  _4-prod:
     name: "Terraform Destroy (prod)"
-    needs: [ _2-test ]
+    needs: [ _3-test ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: prod
