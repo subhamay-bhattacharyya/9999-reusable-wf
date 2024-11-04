@@ -18,25 +18,15 @@ on:
     secrets:
       git-token:
         required: true
-        
+
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
   pull-requests: write # This is required for gh bot to comment PR  
 
 jobs:
-  _1-setup:
-    name: "Setup Repository"
-    uses: ./.github/workflows/setup-repository.yaml
-    with:
-      deploy-reviewer-test: ${{ inputs.deploy-reviewer-test }}
-      deploy-reviewer-prod: ${{ inputs.deploy-reviewer-prod }}
-      pr-approver: ${{ inputs.pr-approver }}
-    secrets:
-      git-token: ${{ secrets.git-token }}
-  _2-devl:
+  _1-devl:
     name: "Terraform Destroy (devl)"
-    needs: [ _1-setup ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: devl
@@ -44,9 +34,9 @@ jobs:
       aws-role-arn: ${{ vars.DEVL_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.DEVL_AWS_KMS_KEY_ARN }}
       aws-tf-state-bucket-name: ${{ vars.DEVL_AWS_TF_STATE_BUCKET_NAME }}
-  _3-test:
+  _2-test:
     name: "Terraform Destroy (test)"
-    needs: [ _2-devl ]
+    needs: [ _1-devl ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: test
@@ -54,9 +44,9 @@ jobs:
       aws-role-arn: ${{ vars.TEST_AWS_ROLE_ARN }}
       kms-key-arn: ${{ vars.TEST_AWS_KMS_KEY_ARN }}
       aws-tf-state-bucket-name: ${{ vars.TEST_AWS_TF_STATE_BUCKET_NAME }}
-  _4-prod:
+  _3-prod:
     name: "Terraform Destroy (prod)"
-    needs: [ _3-test ]
+    needs: [ _2-test ]
     uses: ./.github/workflows/tf-destroy.yaml
     with:
       github-env: prod

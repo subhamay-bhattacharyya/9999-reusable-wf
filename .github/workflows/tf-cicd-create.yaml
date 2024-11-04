@@ -168,11 +168,6 @@ jobs:
       aws-tf-state-bucket-name: ${{ vars.DEVL_AWS_TF_STATE_BUCKET_NAME}}
     secrets:
       git-token: ${{ secrets.git-token }}
-  _4-2-update-reviewer:
-    needs:
-      - _3-4-tf-apply-prod
-    if: ${{ startsWith(github.ref, 'refs/heads/main') }}
-    uses: ./.github/workflows/tf-update-reviewer.yaml
   _5-1-tf-destroy-feature:
     needs:
       - _4-1-tf-apply-feature
