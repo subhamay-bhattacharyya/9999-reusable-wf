@@ -18,10 +18,10 @@ on:
         required: true
         type: string
         default: devl.terraform.tfvars
-      issue-number:
-        description: 'Specifies the GitHub Issue Number.'
-        required: true
-        type: string
+      # issue-number:
+      #   description: 'Specifies the GitHub Issue Number.'
+      #   required: true
+      #   type: string
       aws-region:
         description: 'Specifies the AWS Region.'
         required: true
