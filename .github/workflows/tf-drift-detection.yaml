@@ -54,20 +54,6 @@ jobs:
         id: git-checkout
         uses: actions/checkout@v4
 
-      - name: Update Environment (prod) and remove reviewers and wait_timer
-        id: update-environment
-        uses: octokit/request-action@v2.4.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          route: PATCH /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/prod
-          mediaType: |
-            format: raw
-          body: |
-            {
-              "wait_timer": null,
-              "reviewers": []
-            }
 
       - name: Add GitHub attributes to terraform.tfvars file
         id: add-github-attributes
