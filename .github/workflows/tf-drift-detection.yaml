@@ -18,10 +18,6 @@ on:
         required: true
         type: string
         default: devl.terraform.tfvars
-      # issue-number:
-      #   description: 'Specifies the GitHub Issue Number.'
-      #   required: true
-      #   type: string
       aws-region:
         description: 'Specifies the AWS Region.'
         required: true
@@ -38,13 +34,6 @@ on:
         description: 'Specifies the AWS KMS Key arn.'
         required: true
         type: string
-    outputs:
-      # issue-number:
-      #   description: "Issue id associated with the feature branch"
-      #   value: ${{ jobs.plan.outputs.issue-number }}
-      change-detected:
-        description: "Specifies if there is a change detected in the terraform plan."
-        value: ${{ jobs.plan.outputs.change-detected }}
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -53,11 +42,6 @@ permissions:
 jobs:
   plan:
     name: "TF Plan (${{ inputs.github-env }})"
-    outputs:
-      ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
-      tf-plan: ${{ steps.plan.outputs.tf-plan }}
-      # issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
-      change-detected: ${{ steps.drift-check.outputs.change-detected }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
     defaults:
@@ -65,22 +49,10 @@ jobs:
         shell: bash
         working-directory: .
     steps:
-      # - name: Print and issue number to next step
-      #   id: pass-issue-number
-      #   run: |
-      #     echo "issue-number: ${{ inputs.issue-number }}"
-      #     echo "issue-number=`echo ${{ inputs.issue-number }}`" >> $GITHUB_OUTPUT
 
       - name: Git checkout
         id: git-checkout
         uses: actions/checkout@v4
-
-      # - name: Create the CiBuild string
-      #   if: startsWith(github.ref, 'refs/heads/feature')
-      #   id: get-ci-build-string
-      #   run: |
-      #     echo "ci-build=`echo ${{ github.ref_name }}|sed s'/\//-/g'|head -c 15| \
-      #     tr [:upper:] [:lower:]`-`echo ${{ github.sha }}|base64|head -c 4|tr [:upper:] [:lower:]`" >> $GITHUB_OUTPUT 
 
       - name: Add GitHub attributes to terraform.tfvars file
         id: add-github-attributes
@@ -95,14 +67,6 @@ jobs:
           echo -e 'github_repo          = "${{ github.event.repository.name }}"'                                        >> terraform.tfvars
           echo "=========================================== terraform.tfvars ==========================================="
           cat terraform.tfvars 
-
-      # - name: Add CiBuild
-      #   if: startsWith(github.ref, 'refs/heads/feature')
-      #   id: add-ci-build
-      #   run: |
-      #     echo -e 'ci_build             = "-${{ steps.get-ci-build-string.outputs.ci-build }}"'                         >> tf/terraform.tfvars
-      #     echo "=========================================== terraform.tfvars ==========================================="
-      #     cat tf/terraform.tfvars 
 
       - name: Configure AWS credentials from AWS account
         id: aws-config
@@ -133,13 +97,6 @@ jobs:
           terraform fmt
           terraform init -backend-config="bucket=${{ inputs.aws-tf-state-bucket-name }}" -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate" -backend-config="region=${{ inputs.aws-region }}"
 
-      # - name: Terraform fmt
-      #   id: format
-      #   run: |
-      #     cd ${{ github.workspace }}/tf
-      #     terraform fmt -check
-      #   continue-on-error: false
-
       - name: Terraform Plan
         id: plan
         run: |
@@ -166,8 +123,17 @@ jobs:
             echo "change-detected=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Terraform Plan Status
-        id: plan-status
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
+      - name: Create an issue if drift detected
+        id: create-issue
+        if: ${{ steps.drift-check.outputs.change-detected }} == 'true'
+        uses: octokit/request-action@v2.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          route: POST /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/issues
+          title: "Terraform Drift Detected"
+          body: |
+            Drift has been detected in the Terraform-managed infrastructure. Please review the plan output and take necessary actions.
+
+
           
