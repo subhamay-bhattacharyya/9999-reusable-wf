@@ -135,7 +135,6 @@ jobs:
           terraform apply -auto-approve
           terraform output -json|jq ".resources.value" > ${{ github.workspace }}/tf/terraform-output.json
 
-
           json_file="${{ github.workspace }}/tf/terraform-output.json"
 
           # Output HTML file

@@ -42,9 +42,9 @@ on:
       issue-number:
         description: "Issue id associated with the feature branch"
         value: ${{ jobs.plan.outputs.issue-number }}
-      change-detected:
-        description: "Specifies if there is a change detected in the terraform plan."
-        value: ${{ jobs.plan.outputs.change-detected }}
+      # change-detected:
+      #   description: "Specifies if there is a change detected in the terraform plan."
+      #   value: ${{ jobs.plan.outputs.change-detected }}
 permissions:
   id-token: write # This is required for aws oidc connection
   contents: read # This is required for actions/checkout
@@ -57,7 +57,7 @@ jobs:
       ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
       tf-plan: ${{ steps.plan.outputs.tf-plan }}
       issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
-      change-detected: ${{ steps.drift-check.outputs.change-detected }}
+      # change-detected: ${{ steps.drift-check.outputs.change-detected }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
     defaults:
@@ -146,21 +146,21 @@ jobs:
           cd ${{ github.workspace }}/tf
           terraform plan -out=${{ github.workspace }}/tf/terraform.tfplan -var-file=terraform.tfvars -no-color
 
-      - name: Check for Drift
-        id: drift-check
-        run: |
-          cd ${{ github.workspace }}/tf
-          terraform show -no-color -json > tf.json
-          terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan > ${{ github.workspace }}/tf/tfplan.json
-          # terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfstate > ${{ github.workspace }}/tf/tfstate.json
-          drift=$(terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
-          if [ $drift -gt 0 ]; then
-            echo "Drift detected"
-            echo "change-detected=true" >> $GITHUB_OUTPUT
-          else
-            echo "No Drift detected"
-            echo "change-detected=false" >> $GITHUB_OUTPUT
-          fi
+      # - name: Check for Drift
+      #   id: drift-check
+      #   run: |
+      #     cd ${{ github.workspace }}/tf
+      #     terraform show -no-color -json > tf.json
+      #     terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan > ${{ github.workspace }}/tf/tfplan.json
+      #     # terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfstate > ${{ github.workspace }}/tf/tfstate.json
+      #     drift=$(terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
+      #     if [ $drift -gt 0 ]; then
+      #       echo "Drift detected"
+      #       echo "change-detected=true" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "No Drift detected"
+      #       echo "change-detected=false" >> $GITHUB_OUTPUT
+      #     fi
 
       - name: Terraform Plan Status
         id: plan-status
