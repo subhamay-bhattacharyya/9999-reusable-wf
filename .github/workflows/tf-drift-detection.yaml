@@ -127,7 +127,7 @@ jobs:
           # terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfstate > ${{ github.workspace }}/tf/tfstate.json
 
           echo "=========================================== terraform.tfplan ==========================================="
-          cat ${{ github.workspace }}/tf/tfstate.json
+          cat ${{ github.workspace }}/tf/tfplan.json
           echo "=========================================== terraform.tfplan ==========================================="
 
           drift=$(terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
