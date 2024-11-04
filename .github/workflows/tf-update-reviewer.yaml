@@ -28,13 +28,13 @@ jobs:
           route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/prod/protection_rules
           mediaType: |
             format: raw
-          # wait_timer: null
-          # reviewers: []
-          body: |
-            {
-              "wait_timer": null,
-              "reviewers": []
-            }
+          wait_timer: null
+          reviewers: []
+          # body: |
+          #   {
+          #     "wait_timer": null,
+          #     "reviewers": []
+          #   }
 
 
 
