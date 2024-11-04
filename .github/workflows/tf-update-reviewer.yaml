@@ -25,9 +25,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          route: PATCH /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/prod
+          route: PUT /repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/environments/prod/protection_rules
           mediaType: |
             format: raw
+          # wait_timer: null
+          # reviewers: []
           body: |
             {
               "wait_timer": null,
