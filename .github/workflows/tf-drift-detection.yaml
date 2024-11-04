@@ -113,14 +113,6 @@ jobs:
           cd ${{ github.workspace }}/tf
           terraform show -no-color -json > tf.json
           terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan > ${{ github.workspace }}/tf/tfplan.json
-
-          echo "=========================================== terraform.tfplan ==========================================="
-          cat ${{ github.workspace }}/tf/tfplan.json| jq
-          echo "=========================================== terraform.tfplan ==========================================="
-          echo "=========================================== terraform.tfplan changes ==================================="
-          cat ${{ github.workspace }}/tf/tfplan.json| jq -r '.resource_changes[].change.actions[]'
-          echo "=========================================== terraform.tfplan changes ==================================="
-
           drift=$(terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
           if [ $drift -gt 0 ]; then
             echo "Drift detected"
