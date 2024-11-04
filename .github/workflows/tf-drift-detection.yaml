@@ -39,9 +39,9 @@ on:
         required: true
         type: string
     outputs:
-      issue-number:
-        description: "Issue id associated with the feature branch"
-        value: ${{ jobs.plan.outputs.issue-number }}
+      # issue-number:
+      #   description: "Issue id associated with the feature branch"
+      #   value: ${{ jobs.plan.outputs.issue-number }}
       change-detected:
         description: "Specifies if there is a change detected in the terraform plan."
         value: ${{ jobs.plan.outputs.change-detected }}
@@ -56,7 +56,7 @@ jobs:
     outputs:
       ci-build: ${{ steps.get-ci-build-string.outputs.ci-build }}
       tf-plan: ${{ steps.plan.outputs.tf-plan }}
-      issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
+      # issue-number: ${{ steps.pass-issue-number.outputs.issue-number }}
       change-detected: ${{ steps.drift-check.outputs.change-detected }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-env }}
