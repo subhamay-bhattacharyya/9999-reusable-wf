@@ -103,10 +103,6 @@ jobs:
           cd ${{ github.workspace }}/tf
           terraform plan -out=${{ github.workspace }}/tf/terraform.tfplan -var-file=terraform.tfvars -no-color
 
-          echo "=========================================== terraform.tfplan ==========================================="
-          cat ${{ github.workspace }}/tf/terraform.tfplan
-          echo "=========================================== terraform.tfplan ==========================================="
-
       - name: Check for Drift
         id: drift-check
         run: |
@@ -114,6 +110,11 @@ jobs:
           terraform show -no-color -json > tf.json
           terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan > ${{ github.workspace }}/tf/tfplan.json
           # terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfstate > ${{ github.workspace }}/tf/tfstate.json
+
+          echo "=========================================== terraform.tfplan ==========================================="
+          cat ${{ github.workspace }}/tf/tfstate.json
+          echo "=========================================== terraform.tfplan ==========================================="
+
           drift=$(terraform show -no-color -json ${{ github.workspace }}/tf/terraform.tfplan | jq -r '.resource_changes[].change.actions[]' | grep -v no-op | wc -l)
           if [ $drift -gt 0 ]; then
             echo "Drift detected"
@@ -126,7 +127,7 @@ jobs:
       - name: Create an issue if drift detected
         id: create-issue
         if: ${{ steps.drift-check.outputs.change-detected }} == 'true'
-        uses: octokit/request-action@v2.1.1
+        uses: octokit/request-action@v2.4.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
