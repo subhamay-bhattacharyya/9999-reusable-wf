@@ -91,7 +91,7 @@ jobs:
           echo -e 'github_url           = "${{ github.repositoryUrl }}"'                                                >> terraform.tfvars 
           echo -e 'github_ref           = "${{ github.ref }}"'                                                          >> terraform.tfvars 
           echo -e 'github_sha           = "${{ github.sha }}"'                                                          >> terraform.tfvars 
-          echo -e 'github_wf_run_num    = "${{ github.run_number }}"'                                                   >> terraform.tfvars 
+          # echo -e 'github_wf_run_num    = "${{ github.run_number }}"'                                                   >> terraform.tfvars 
           echo -e 'github_repo          = "${{ github.event.repository.name }}"'                                        >> terraform.tfvars
           echo "=========================================== terraform.tfvars ==========================================="
           cat terraform.tfvars 
